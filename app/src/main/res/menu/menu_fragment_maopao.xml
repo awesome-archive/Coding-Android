@@ -1,9 +1,9 @@
-<menu xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:android="http://schemas.android.com/apk/res/android">
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
         android:id="@+id/action_search"
-        android:icon="@drawable/ic_menu_search"
-        android:title="搜索"
+        android:icon="@drawable/ic_menu_maopao_search"
+        android:title="热门话题"
         app:showAsAction="always" />
 </menu>

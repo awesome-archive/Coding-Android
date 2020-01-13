@@ -1,0 +1,47 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/stand_bg"
+    android:orientation="vertical">
+
+    <EditText
+        android:id="@+id/title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="@dimen/padding_15"
+        android:layout_marginRight="@dimen/padding_15"
+        android:layout_marginTop="18dp"
+        android:background="@null"
+        android:hint="讨论标题"
+        android:lines="1"
+        android:text="我我问"
+        android:textColor="@color/font_1"
+        android:visibility="gone" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:layout_marginBottom="9dp"
+        android:layout_marginLeft="@dimen/padding_15"
+        android:layout_marginRight="@dimen/padding_15"
+        android:layout_marginTop="9dp"
+        android:background="#ffcccccc"
+        android:visibility="gone" />
+
+    <EditText
+        android:id="@+id/edit"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginLeft="@dimen/padding_15"
+        android:layout_marginRight="@dimen/padding_15"
+        android:layout_marginTop="9dp"
+        android:layout_weight="1"
+        android:background="@color/transparent"
+        android:gravity="start"
+        android:hint="在项目里冒个泡吧~"
+        android:minHeight="600dp"
+        android:textColor="@color/font_2" />
+
+    <include layout="@layout/md_edit_bar" />
+
+</LinearLayout>

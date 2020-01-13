@@ -10,7 +10,10 @@
         android:id="@+id/icon"
         android:layout_width="37dp"
         android:layout_height="37dp"
-        android:layout_margin="12dp"
+        android:layout_marginBottom="@dimen/padding_12"
+        android:layout_marginLeft="@dimen/padding_15"
+        android:layout_marginRight="@dimen/padding_12"
+        android:layout_marginTop="@dimen/padding_12"
         android:focusable="false"
         android:src="@drawable/ic_default_user" />
 
@@ -39,7 +42,7 @@
                 android:lineSpacingExtra="1dp"
                 android:lineSpacingMultiplier="1.1"
                 android:textAppearance="?android:attr/textAppearanceSmall"
-                android:textColor="@color/font_black_content"
+                android:textColor="@color/font_1"
                 android:textSize="15sp" />
         </LinearLayout>
 
@@ -51,7 +54,7 @@
             android:orientation="horizontal"
             android:visibility="visible" />
 
-        <LinearLayout
+        <RelativeLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
@@ -61,10 +64,8 @@
                 android:id="@+id/name"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_alignLeft="@id/layoutContent"
-                android:layout_below="@id/layoutContent"
                 android:text="超级小胖纸"
-                android:textColor="@color/font_black_comment"
+                android:textColor="@color/font_3"
                 android:textSize="12sp" />
 
             <TextView
@@ -76,18 +77,17 @@
                 android:layout_toRightOf="@id/name"
                 android:drawableLeft="@drawable/ic_clock"
                 android:drawablePadding="5dp"
-
                 android:text="3分钟前"
-                android:textColor="@color/font_black_9"
+                android:textColor="@color/font_3"
                 android:textSize="12sp" />
-        </LinearLayout>
-    </LinearLayout>
 
-    <!--<include-->
-    <!--layout="@layout/divide_1"-->
-    <!--android:layout_below="@id/layout_1"-->
-    <!--android:layout_width="match_parent"-->
-    <!--android:layout_height="1dp"-->
-    <!--android:layout_marginTop="10dp" />-->
+            <TextView
+                android:id="@+id/commentWebviewDetail"
+                style="@style/commentWebviewDetail"
+                android:visibility="invisible"
+                android:text="查看详情" />
+
+        </RelativeLayout>
+    </LinearLayout>
 
 </RelativeLayout>

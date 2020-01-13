@@ -5,15 +5,14 @@ import android.content.Intent;
 import android.view.View;
 import android.widget.TextView;
 
-import net.coding.program.ImagePagerFragment;
 import net.coding.program.R;
-import net.coding.program.common.BlankViewDisplay;
-import net.coding.program.common.FileUtil;
 import net.coding.program.common.Global;
-import net.coding.program.model.AttachmentFileObject;
+import net.coding.program.common.util.FileUtil;
+import net.coding.program.common.widget.BottomToolBar;
+import net.coding.program.pickphoto.detail.ImagePagerFragment;
 import net.coding.program.project.detail.file.FileDynamicActivity;
-import net.coding.program.project.detail.file.TxtEditActivity;
 import net.coding.program.project.detail.file.TxtEditActivity_;
+import net.coding.program.route.BlankViewDisplay;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.EActivity;
@@ -24,7 +23,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * 展示某一项目文档目录下面TXT文件的Activity
+ * 展示某一项目文件目录下面TXT文件的Activity
  * Created by yangzhen
  */
 @EActivity(R.layout.activity_attachments_text)
@@ -35,25 +34,37 @@ public class AttachmentsTextDetailActivity extends AttachmentsDetailBaseActivity
     TextView textView;
     @ViewById
     View blankLayout;
-    boolean downloadFileSuccess = false;
+    @ViewById
+    BottomToolBar bottomToolBar;
+
     String urlFiles = Global.HOST_API + "/project/%s/files/%s/view";
-    AttachmentFileObject mFiles = new AttachmentFileObject();
 
     @AfterViews
     protected final void initAttachmentsTextDetailActivity() {
-        urlFiles = String.format(urlFiles, mProjectObjectId, mAttachmentFileObject.file_id);
-        if (mFile.exists()) {
-            textView.setText(TxtEditActivity.readPhoneNumber(mFile));
+        if (mExtraFile != null) {
+            textView.setText(Global.readTextFile(mExtraFile));
+            bottomToolBar.setVisibility(View.GONE);
         } else {
-            showDialogLoading();
-            getFileUrlFromNetwork();
+            urlFiles = String.format(urlFiles, mProjectObjectId, mAttachmentFileObject.file_id);
+            if (mFile.exists()) {
+                textView.setText(Global.readTextFile(mFile));
+            } else {
+                showDialogLoading();
+                getFileUrlFromNetwork();
+            }
         }
+
+        bottomToolBar.setClick(clickBottomBar);
     }
 
     private void updateLoadFile() {
+        if (mAttachmentFileObject == null || mProjectObjectId == 0) {
+            return;
+        }
+
         mFile = FileUtil.getDestinationInExternalPublicDir(getFileDownloadPath(), mAttachmentFileObject.getSaveName(mProjectObjectId));
-        if (mFile.exists()) {
-            textView.setText(TxtEditActivity.readPhoneNumber(mFile));
+        if (mFile != null && mFile.exists()) {
+            textView.setText(Global.readTextFile(mFile));
         }
     }
 
@@ -82,14 +93,12 @@ public class AttachmentsTextDetailActivity extends AttachmentsDetailBaseActivity
         if (tag.equals(urlFiles)) {
             if (code == 0) {
                 hideProgressDialog();
-                JSONObject file = respanse.getJSONObject("data").getJSONObject("file");
-                mFiles = new AttachmentFileObject(file);
                 String content = respanse.getJSONObject("data").optString("content");
                 textView.setText(content);
                 invalidateOptionsMenu();
 
             } else {
-                if (code == ImagePagerFragment.HTTP_CODE_FILE_NOT_EXIST) {
+                if (code == ImagePagerFragment.Companion.getHTTP_CODE_FILE_NOT_EXIST()) {
                     BlankViewDisplay.setBlank(0, this, true, blankLayout, null);
                 } else {
                     BlankViewDisplay.setBlank(0, this, false, blankLayout, new View.OnClickListener() {
@@ -104,6 +113,11 @@ public class AttachmentsTextDetailActivity extends AttachmentsDetailBaseActivity
                 showErrorMsg(code, respanse);
             }
         }
+    }
+
+    @Override
+    protected void onRefresh() {
+        getFileUrlFromNetwork();
     }
 
     @OptionsItem
@@ -123,8 +137,7 @@ public class AttachmentsTextDetailActivity extends AttachmentsDetailBaseActivity
     protected void onResultModify(int result, Intent intent) {
         if (result == Activity.RESULT_OK) {
             setResult(result, intent);
-            mAttachmentFileObject = (AttachmentFileObject) intent.getSerializableExtra(AttachmentFileObject.RESULT);
-            updateLoadFile();
+            onRefresh();
         }
     }
 }

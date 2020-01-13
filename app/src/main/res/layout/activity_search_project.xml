@@ -1,40 +1,110 @@
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="net.coding.program.project.SearchProjectActivity">
+    android:background="@color/divide"
+    android:orientation="vertical">
 
-    <FrameLayout
-        android:id="@+id/container"
+    <!--<include layout="@layout/activity_search_project_actionbar" />-->
+
+    <net.coding.program.third.WechatTab
+        android:id="@+id/tabs"
+        style="@style/TextTabBar"
+        android:visibility="gone" />
+
+    <android.support.v4.view.ViewPager
+        android:id="@+id/pager"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="invisible" />
+        android:visibility="gone" />
 
+    <!--没有搜索内容也没有历史记录-->
     <LinearLayout
-        android:id="@+id/emptyView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/divide"
+        android:id="@+id/allEmptyView"
+        android:layout_width="256dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="51dp"
         android:gravity="center_horizontal"
-        android:orientation="vertical"
-        android:paddingTop="35dp"
-        android:visibility="visible">
-
-        <View
-            android:layout_width="143dp"
-            android:layout_height="143dp"
-            android:background="@drawable/ic_search_project" />
+        android:orientation="vertical">
 
         <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true"
+            android:text="搜索更多内容"
+            android:textColor="@color/font_3"
+            android:textSize="15sp" />
+
+        <View
+            style="@style/DivideLine"
+            android:layout_height="0.5dp"
+            android:layout_marginLeft="19.5dp"
+            android:layout_marginRight="19.5dp"
+            android:layout_marginTop="15dp" />
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="15dp"
-            android:gravity="center"
-            android:lineSpacingExtra="1dp"
-            android:lineSpacingMultiplier="1.1"
-            android:text="搜索项目名称或创建人的个性后缀\n都可以进行项目搜索哦！"
-            android:textColor="@color/font_black_9" />
+            android:layout_marginTop="20dp"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/searchEmptyIcon"
+                android:layout_marginLeft="0dp"
+                android:drawableTop="@mipmap/ic_search_project"
+                android:text="项目" />
+
+            <TextView
+                style="@style/searchEmptyIcon"
+                android:drawableTop="@mipmap/ic_search_task"
+                android:text="任务" />
+
+            <TextView
+                style="@style/searchEmptyIcon"
+                android:layout_marginRight="0dp"
+                android:drawableTop="@mipmap/ic_search_maopao"
+                android:text="冒泡" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/searchEmptyIcon"
+                android:layout_marginLeft="0dp"
+                android:drawableTop="@mipmap/ic_search_file"
+                android:text="文件" />
+
+            <TextView
+                style="@style/searchEmptyIcon"
+                android:drawableTop="@mipmap/ic_search_user"
+                android:text="用户" />
+
+            <TextView
+                style="@style/searchEmptyIcon"
+                android:drawableTop="@mipmap/ic_search_mr"
+                android:text="合并请求" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
-</FrameLayout>
+    <ListView
+        android:id="@+id/emptyListView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:cacheColorHint="@color/transparent"
+        android:clipToPadding="false"
+        android:divider="@color/divide_line"
+        android:dividerHeight="0.5dp"
+        android:drawSelectorOnTop="true"
+        android:footerDividersEnabled="false"
+        android:listSelector="@color/transparent"
+        android:overScrollMode="never"
+        android:scrollbarStyle="outsideOverlay"
+        android:scrollbars="none"
+        android:visibility="gone" />
+</LinearLayout>

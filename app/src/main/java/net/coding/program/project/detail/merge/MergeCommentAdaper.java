@@ -7,7 +7,7 @@ import android.widget.SectionIndexer;
 
 import net.coding.program.R;
 import net.coding.program.common.comment.BaseCommentParam;
-import net.coding.program.model.BaseComment;
+import net.coding.program.common.model.BaseComment;
 
 import se.emilsjolander.stickylistheaders.StickyListHeadersAdapter;
 
@@ -38,7 +38,7 @@ public class MergeCommentAdaper extends SimpleData1Adaper<BaseComment> implement
     @Override
     public View getHeaderView(int i, View view, ViewGroup viewGroup) {
         if (view == null) {
-            view = LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.divide_15_top_bottom,
+            view = LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.divide_middle_15,
                     viewGroup, false);
         }
 

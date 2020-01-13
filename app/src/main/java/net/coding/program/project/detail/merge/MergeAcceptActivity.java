@@ -3,10 +3,11 @@ package net.coding.program.project.detail.merge;
 import android.view.View;
 import android.widget.EditText;
 
-import net.coding.program.BackActivity;
 import net.coding.program.R;
-import net.coding.program.model.MergeDetail;
-import net.coding.program.model.PostRequest;
+import net.coding.program.common.model.MergeDetail;
+import net.coding.program.common.model.RequestData;
+import net.coding.program.common.ui.BackActivity;
+import net.coding.program.common.umeng.UmengEvent;
 import net.coding.program.third.EmojiFilter;
 
 import org.androidannotations.annotations.AfterViews;
@@ -48,13 +49,18 @@ public class MergeAcceptActivity extends BackActivity {
             return;
         }
 
-        PostRequest request = mMergeDetail.getHttpMerge(text, delSrc.getVisibility() == View.VISIBLE);
+        RequestData request = mMergeDetail.getHttpMerge(text, delSrc.getVisibility() == View.VISIBLE);
         postNetwork(request, HOST_ACCEPT_MEREGE);
+
+        showProgressBar(true);
     }
 
     @Override
     public void parseJson(int code, JSONObject respanse, String tag, int pos, Object data) throws JSONException {
         if (tag.equals(HOST_ACCEPT_MEREGE)) {
+            umengEvent(UmengEvent.CODE, "合并mrpr");
+            umengEvent(UmengEvent.E_GIT, "MR合并");
+            showProgressBar(false);
             if (code == 0) {
                 setResult(RESULT_OK);
                 finish();

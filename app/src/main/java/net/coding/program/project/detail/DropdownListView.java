@@ -126,7 +126,7 @@ public class DropdownListView extends ScrollView {
         flush();
     }
 
-    public static interface Container {
+    public interface Container {
         void show(DropdownListView listView);
 
         void hide();

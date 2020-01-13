@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.design.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <android.support.design.widget.AppBarLayout
+        android:id="@+id/appbarLayout"
+        style="@style/AppBarLayout">
+
+        <include layout="@layout/view_user_info" />
+
+        <include layout="@layout/common_pager_tabs" />
+    </android.support.design.widget.AppBarLayout>
+
+    <include layout="@layout/common_viewpager" />
+
+</android.support.design.widget.CoordinatorLayout>

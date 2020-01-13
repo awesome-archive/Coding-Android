@@ -1,159 +1,116 @@
 package net.coding.program;
 
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.DialogInterface;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.drawable.BitmapDrawable;
-import android.net.Uri;
 import android.os.Bundle;
+import android.support.v7.app.AlertDialog;
 import android.text.Editable;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
-import com.nostra13.universalimageloader.core.DisplayImageOptions;
-import com.nostra13.universalimageloader.core.assist.ImageScaleType;
-import com.nostra13.universalimageloader.core.display.FadeInBitmapDisplayer;
-import com.tencent.android.tpush.XGPushManager;
+import com.orhanobut.logger.Logger;
+import com.umeng.socialize.UMAuthListener;
+import com.umeng.socialize.UMShareAPI;
+import com.umeng.socialize.bean.SHARE_MEDIA;
 
 import net.coding.program.common.Global;
-import net.coding.program.common.LoginBackground;
+import net.coding.program.common.GlobalCommon;
+import net.coding.program.common.GlobalData;
 import net.coding.program.common.SimpleSHA1;
-import net.coding.program.common.enter.SimpleTextWatcher;
-import net.coding.program.common.guide.GuideActivity;
+import net.coding.program.common.event.EventLoginSuccess;
+import net.coding.program.common.model.AccountInfo;
+import net.coding.program.common.model.UserObject;
 import net.coding.program.common.network.MyAsyncHttpClient;
 import net.coding.program.common.network.NetworkImpl;
+import net.coding.program.common.ui.BaseActivity;
+import net.coding.program.common.umeng.UmengEvent;
+import net.coding.program.common.util.InputCheck;
 import net.coding.program.common.widget.LoginAutoCompleteEdit;
-import net.coding.program.login.SendEmailActiveActivity_;
-import net.coding.program.login.SendEmailPasswordActivity_;
+import net.coding.program.common.widget.input.SimpleTextWatcher;
+import net.coding.program.compatible.CodingCompat;
+import net.coding.program.login.PhoneRegisterActivity_;
 import net.coding.program.login.auth.AuthInfo;
 import net.coding.program.login.auth.TotpClock;
-import net.coding.program.model.AccountInfo;
-import net.coding.program.model.UserObject;
-import net.coding.program.third.FastBlur;
+import net.coding.program.login.phone.Close2FAActivity_;
+import net.coding.program.login.phone.PhoneSetPasswordActivity_;
+import net.coding.program.maopao.share.CustomShareBoard;
+import net.coding.program.thirdplatform.ThirdPlatformLogin;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.Click;
 import org.androidannotations.annotations.EActivity;
-import org.androidannotations.annotations.Extra;
 import org.androidannotations.annotations.FocusChange;
 import org.androidannotations.annotations.OnActivityResult;
 import org.androidannotations.annotations.ViewById;
-import org.apache.http.Header;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.File;
+import java.util.Calendar;
+import java.util.Map;
+
+import cz.msebera.android.httpclient.Header;
 
 @EActivity(R.layout.activity_login)
 public class LoginActivity extends BaseActivity {
 
     public static final String EXTRA_BACKGROUND = "background";
-    public static String HOST_USER = Global.HOST_API + "/user/key/%s";
-    private static String HOST_NEED_CAPTCHA = Global.HOST_API + "/captcha/login";
     final float radius = 8;
     final double scaleFactor = 16;
-    final String HOST_LOGIN = Global.HOST_API + "/login";
-    final String HOST_USER_RELOGIN = "HOST_USER_RELOGIN";
     final String HOST_USER_NEED_2FA = Global.HOST_API + "/check_two_factor_auth_code";
-    final private int RESULT_CLOSE = 100;
-    @Extra
-    Uri background;
-    @ViewById
-    ImageView userIcon;
-    @ViewById
-    ImageView backgroundImage;
-    @ViewById
-    View layoutRoot;
-    @ViewById
-    LoginAutoCompleteEdit editName;
-    @ViewById
-    EditText editPassword;
+    private final String TAG_LOGIN = "TAG_LOGIN";
+    private final int RESULT_CLOSE = 100;
+    private final int RESULT_CLOSE_2FA = 101;
+
+    public String HOST_USER = Global.HOST_API + "/current_user";
+    public String HOST_LOGIN_WEIXIN = Global.HOST_API + "/oauth/wechat/mobile/login";
+
     @ViewById
     ImageView imageValify;
     @ViewById
-    EditText editValify;
+    LoginAutoCompleteEdit editName;
     @ViewById
-    EditText edit2FA;
+    EditText editPassword, editValify, edit2FA;
     @ViewById
-    View captchaLayout;
-    @ViewById
-    View loginButton;
-    @ViewById
-    View layout2fa, loginLayout;
-    DisplayImageOptions options = new DisplayImageOptions.Builder()
-            .showImageForEmptyUri(R.drawable.icon_user_monkey)
-            .showImageOnFail(R.drawable.icon_user_monkey)
-            .resetViewBeforeLoading(true)
-            .cacheOnDisk(true)
-            .imageScaleType(ImageScaleType.EXACTLY)
-            .bitmapConfig(Bitmap.Config.RGB_565)
-            .considerExifParams(true)
-            .displayer(new FadeInBitmapDisplayer(300))
-            .build();
+    View login2FA, loginFail, captchaLayout, loginButton, layout2fa, loginLayout, layoutRoot, layoutTop2FA, register, loginWeixin;
+
     View androidContent;
-    TextWatcher textWatcher = new SimpleTextWatcher() {
-        @Override
-        public void afterTextChanged(Editable s) {
-            upateLoginButton();
-        }
-    };
-    TextWatcher textWatcherName = new SimpleTextWatcher() {
-        @Override
-        public void afterTextChanged(Editable s) {
-            userIcon.setImageResource(R.drawable.icon_user_monkey);
-//            userIcon.setBackgroundResource(R.drawable.icon_user_monkey);
-        }
-    };
+
+    private String HOST_NEED_CAPTCHA = Global.HOST_API + "/captcha/login";
+    private int clickIconCount = 0;
+    private long lastClickTime = 0;
     private String globalKey = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+        // 删除 cookie，防止出现多个 cookie 导致登录bu
+        AccountInfo.clearCookie(this);
 
-        // 调用下，防止收到上次登陆账号的通知
-        XGPushManager.registerPush(this, "*");
+        super.onCreate(savedInstanceState);
     }
 
     @AfterViews
-    void init() {
-        if (background == null) {
-            LoginBackground.PhotoItem photoItem = new LoginBackground(this).getPhoto();
-            File file = photoItem.getCacheFile(this);
-            if (file.exists()) {
-                background = Uri.fromFile(file);
-            }
-        }
-
-        try {
-            BitmapDrawable bitmapDrawable;
-            if (background == null) {
-                bitmapDrawable = createBlur();
-            } else {
-                bitmapDrawable = createBlur(background);
-            }
-            backgroundImage.setImageDrawable(bitmapDrawable);
-        } catch (Exception e) {
-            Global.errorLog(e);
-        }
-
+    void initLoginActivity() {
         needCaptcha();
-
+        TextWatcher textWatcher = new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable s) {
+                upateLoginButton();
+            }
+        };
         editName.addTextChangedListener(textWatcher);
         editPassword.addTextChangedListener(textWatcher);
         editValify.addTextChangedListener(textWatcher);
         upateLoginButton();
-
-        editName.addTextChangedListener(textWatcherName);
 
         androidContent = findViewById(android.R.id.content);
         androidContent.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
@@ -179,46 +136,48 @@ public class LoginActivity extends BaseActivity {
         }
     }
 
-    private BitmapDrawable createBlur() {
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inJustDecodeBounds = true;
-        BitmapFactory.decodeResource(getResources(), R.drawable.entrance1, options);
-        int height = options.outHeight;
-        int width = options.outWidth;
+    @Click
+    void loginTitle() {
+        long clickTime = Calendar.getInstance().getTimeInMillis();
+        long lastTemp = lastClickTime;
+        lastClickTime = clickTime;
+        if (clickTime - lastTemp < 1000) {
+            ++clickIconCount;
+        } else {
+            clickIconCount = 1;
+        }
 
-        options.outHeight = (int) (height / scaleFactor);
-        options.outWidth = (int) (width / scaleFactor);
-        options.inSampleSize = (int) (scaleFactor + 0.5);
-        options.inJustDecodeBounds = false;
-        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
-        options.inMutable = true;
+        if (clickIconCount >= 5) {
+            clickIconCount = 0;
 
-        Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.entrance1, options);
-        Bitmap blurBitmap = FastBlur.doBlur(bitmap, (int) radius, true);
+            AlertDialog.Builder builder = new AlertDialog.Builder(this, R.style.MyAlertDialogStyle);
+            View content = getLayoutInflater().inflate(R.layout.host_setting, null);
+            final EditText editText = content.findViewById(R.id.edit);
+            AccountInfo.CustomHost customHost = AccountInfo.getCustomHost(this);
+            editText.setText(customHost.getHost());
+            editText.setHint(Global.DEFAULT_HOST);
+            builder.setView(content)
+                    .setPositiveButton(R.string.action_ok, (dialog, which) -> {
+                        String hostString = editText.getText().toString();
+                        AccountInfo.CustomHost customHost1 = new AccountInfo.CustomHost(hostString, "");
+                        if (!hostString.isEmpty()) {
+                            AccountInfo.saveCustomHost(this, customHost1);
+                        } else {
+                            AccountInfo.removeCustomHost(this);
+                        }
 
-        return new BitmapDrawable(getResources(), blurBitmap);
+                        AccountInfo.loginOut(this);
+                        setResult(RESULT_OK);
+                        finish();
+                    })
+                    .setNegativeButton(R.string.action_cancel, null)
+                    .show();
+        }
     }
 
-    private BitmapDrawable createBlur(Uri uri) {
-        String path = Global.getPath(this, uri);
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inJustDecodeBounds = true;
-        BitmapFactory.decodeFile(path, options);
-        int height = options.outHeight;
-        int width = options.outWidth;
-
-        options.outHeight = (int) (height / scaleFactor);
-        options.outWidth = (int) (width / scaleFactor);
-        options.inSampleSize = (int) (scaleFactor + 0.5);
-        options.inJustDecodeBounds = false;
-        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
-        options.inMutable = true;
-
-        Bitmap bitmap = BitmapFactory.decodeFile(path, options);
-
-        Bitmap blurBitmap = FastBlur.doBlur(bitmap, (int) radius, true);
-
-        return new BitmapDrawable(getResources(), blurBitmap);
+    @Click
+    void backImage() {
+        onBackPressed();
     }
 
     @Click
@@ -228,16 +187,29 @@ public class LoginActivity extends BaseActivity {
     }
 
     @Click
+    void loginWeixin() {
+        Global.popSoftkeyboard(this, editName, false);
+        ThirdPlatformLogin.loginByWeixin(this, umAuthListener);
+    }
+
+    @Click
     void register() {
-        RegisterActivity_.intent(this).startForResult(RESULT_CLOSE);
+        Global.popSoftkeyboard(this, editName, false);
+        PhoneRegisterActivity_.intent(this).start();
+    }
+
+    @OnActivityResult(RESULT_CLOSE_2FA)
+    void onResultClose2FA() {
+        show2FA(false);
     }
 
     @OnActivityResult(RESULT_CLOSE)
     void resultRegiter(int result) {
         if (result == Activity.RESULT_OK) {
-            sendBroadcast(new Intent(GuideActivity.BROADCAST_GUIDE_ACTIVITY));
-            finish();
+            EventLoginSuccess.Companion.sendMessage();
         }
+
+        finish();
     }
 
     private void needCaptcha() {
@@ -282,6 +254,8 @@ public class LoginActivity extends BaseActivity {
         params.put("code", input);
         postNetwork(HOST_USER_NEED_2FA, params, HOST_USER_NEED_2FA);
         showProgressBar(true, "登录中");
+
+        Global.popSoftkeyboard(this, edit2FA, false);
     }
 
     private void login() {
@@ -291,7 +265,7 @@ public class LoginActivity extends BaseActivity {
             String captcha = editValify.getText().toString();
 
             if (name.isEmpty()) {
-                showMiddleToast("邮箱或个性后缀不能为空");
+                showMiddleToast("邮箱或用户名不能为空");
                 return;
             }
 
@@ -301,15 +275,23 @@ public class LoginActivity extends BaseActivity {
             }
 
             RequestParams params = new RequestParams();
-            params.put("email", name);
+
             params.put("password", SimpleSHA1.sha1(password));
             if (captchaLayout.getVisibility() == View.VISIBLE) {
                 params.put("j_captcha", captcha);
             }
             params.put("remember_me", true);
 
-            postNetwork(HOST_LOGIN, params, HOST_LOGIN);
+            Global.display(this);
+
+
+            String HOST_LOGIN = Global.HOST_API + "/v2/account/login";
+            params.put("account", name);
+
+            postNetwork(HOST_LOGIN, params, TAG_LOGIN);
             showProgressBar(true, R.string.logining);
+
+            Global.popSoftkeyboard(this, editName, false);
 
         } catch (Exception e) {
             Global.errorLog(e);
@@ -318,33 +300,24 @@ public class LoginActivity extends BaseActivity {
 
     @Click
     protected final void loginFail() {
-        String[] listTitles = getResources().getStringArray(R.array.dialog_login_fail_help);
-        new AlertDialog.Builder(this).setItems(listTitles, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                if (which == 0) {
-                    SendEmailPasswordActivity_
-                            .intent(LoginActivity.this)
-                            .start();
-//                    ResetPasswordActivity_
-//                            .intent(LoginActivity.this)
-//                            .start();
+        String account = editName.getText().toString();
+        if (!InputCheck.isPhone(account)) {
+            account = "";
+        }
 
-                } else if (which == 1) {
-                    SendEmailActiveActivity_
-                            .intent(LoginActivity.this)
-                            .start();
-//                    UserActiveActivity_
-//                            .intent(LoginActivity.this)
-//                            .start();
-                }
-            }
-        }).show();
+        PhoneSetPasswordActivity_.intent(this)
+                .account(account)
+                .start();
     }
 
     @Click
-    protected final void login_2fa() {
-        Global.start2FAActivity(this);
+    protected final void login2FA() {
+        GlobalCommon.start2FAActivity(this);
+    }
+
+    @Click
+    protected final void loginClose2FA() {
+        Close2FAActivity_.intent(this).startForResult(RESULT_CLOSE_2FA);
     }
 
     private void show2FA(boolean show) {
@@ -358,48 +331,71 @@ public class LoginActivity extends BaseActivity {
                 loginButton();
             }
 
+            layoutTop2FA.setVisibility(View.VISIBLE);
+            login2FA.setVisibility(View.GONE);
+            loginFail.setVisibility(View.GONE);
+
+            register.setVisibility(View.GONE);
+            loginWeixin.setVisibility(View.GONE);
         } else {
             layout2fa.setVisibility(View.GONE);
             loginLayout.setVisibility(View.VISIBLE);
+
+            layoutTop2FA.setVisibility(View.GONE);
+            login2FA.setVisibility(View.VISIBLE);
+            loginFail.setVisibility(View.VISIBLE);
+
+            register.setVisibility(View.VISIBLE);
+            loginWeixin.setVisibility(View.VISIBLE);
         }
     }
 
     @Override
     public void parseJson(int code, JSONObject respanse, String tag, int pos, Object data) throws JSONException {
-        if (tag.equals(HOST_LOGIN)) {
+        if (tag.equals(TAG_LOGIN)) {
             if (code == 0) {
+                MainActivity.setNeedWarnEmailNoValidLogin();
                 loginSuccess(respanse);
+                umengEvent(UmengEvent.USER, "普通登录");
             } else if (code == 3205) {
+                MainActivity.setNeedWarnEmailNoValidLogin();
+                umengEvent(UmengEvent.USER, "2fa登录");
                 globalKey = respanse.optJSONObject("msg").optString("two_factor_auth_code_not_empty", "");
                 show2FA(true);
                 showProgressBar(false);
-
+            } else if (code == 3019) {
+                ThirdPlatformLogin.loginOut(this);
+                showMiddleToast("抱歉，你还未绑定微信，请前往 Coding 主站完成微信绑定操作");
+                showProgressBar(false);
             } else {
-                loginFail(code, respanse);
+                loginFail(code, respanse, true);
             }
 
         } else if (tag.equals(HOST_USER_NEED_2FA)) {
             if (code == 0) {
                 loginSuccess(respanse);
             } else {
-                loginFail(code, respanse);
+                loginFail(code, respanse, false);
             }
         } else if (tag.equals(HOST_USER)) {
             if (code == 0) {
                 showProgressBar(false);
                 UserObject user = new UserObject(respanse.getJSONObject("data"));
                 AccountInfo.saveAccount(this, user);
-                MyApp.sUserObject = user;
-                AccountInfo.saveReloginInfo(this, user.email, user.global_key);
+                GlobalData.sUserObject = user;
+                AccountInfo.saveReloginInfo(this, user);
 
                 Global.syncCookie(this);
 
                 String name = editName.getText().toString();
                 AccountInfo.saveLastLoginName(this, name);
 
-                sendBroadcast(new Intent(GuideActivity.BROADCAST_GUIDE_ACTIVITY));
+                EventLoginSuccess.Companion.sendMessage();
+                startActivity(new Intent(LoginActivity.this, CodingCompat.instance().getMainActivity()));
                 finish();
-                startActivity(new Intent(LoginActivity.this, MainActivity_.class));
+
+                overridePendingTransition(R.anim.entrance_fade_in, R.anim.entrance_fade_out);
+
             } else {
                 showProgressBar(false);
                 showErrorMsg(code, respanse);
@@ -414,27 +410,23 @@ public class LoginActivity extends BaseActivity {
             } else {
                 showErrorMsg(code, respanse);
             }
-        } else if (tag.equals(HOST_USER_RELOGIN)) {
-            if (code == 0) {
-                UserObject user = new UserObject(respanse.getJSONObject("data"));
-                imagefromNetwork(userIcon, user.avatar, options);
-            }
         }
     }
 
-    private void loginFail(int code, JSONObject respanse) {
-        String msg = Global.getErrorMsg(respanse);
+    private void loginFail(int code, JSONObject respanse, boolean needCaptcha) {
+        String msg = Global.getErrorMsg(respanse).replaceAll("<li>(.*?)</li>", "\n$1");
         showMiddleToast(msg);
         showProgressBar(false);
         if (code != NetworkImpl.NETWORK_ERROR &&
-                code != NetworkImpl.NETWORK_ERROR_SERVICE) {
+                code != NetworkImpl.NETWORK_ERROR_SERVICE &&
+                needCaptcha) {
             needCaptcha();
         }
     }
 
     private void loginSuccess(JSONObject respanse) throws JSONException {
         UserObject user = new UserObject(respanse.getJSONObject("data"));
-        getNetwork(String.format(HOST_USER, user.global_key), HOST_USER);
+        getNetwork(String.format(HOST_USER), HOST_USER);
         showProgressBar(true, R.string.logining);
     }
 
@@ -462,8 +454,6 @@ public class LoginActivity extends BaseActivity {
         if (global.isEmpty()) {
             return;
         }
-
-        getNetwork(String.format(HOST_USER, global), HOST_USER_RELOGIN);
     }
 
     private void upateLoginButton() {
@@ -484,5 +474,59 @@ public class LoginActivity extends BaseActivity {
         }
 
         loginButton.setEnabled(true);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        UMShareAPI.get(this).onActivityResult(requestCode, resultCode, data);
+    }
+
+    private UMAuthListener umAuthListener = new UMAuthListener() {
+        @Override
+        public void onStart(SHARE_MEDIA platform) {
+            //授权开始的回调
+            showProgressBar(true);
+        }
+
+        @Override
+        public void onComplete(SHARE_MEDIA platform, int action, Map<String, String> data) {
+//            Toast.makeText(getApplicationContext(), "Authorize succeed", Toast.LENGTH_SHORT).show();
+            showProgressBar(false);
+            Logger.d(data);
+
+            String accessToken = data.get("access_token");
+            String account = data.get("unionid");
+
+            if (TextUtils.isEmpty(accessToken) || TextUtils.isEmpty(account)) {
+                showMiddleToast("登录失败");
+                return;
+            }
+
+            RequestParams param = new RequestParams();
+            param.put("oauth_access_token", accessToken);
+            param.put("account", account);
+            param.put("response", new JSONObject(data).toString());
+            postNetwork(HOST_LOGIN_WEIXIN, param, TAG_LOGIN);
+            showProgressBar(true);
+        }
+
+        @Override
+        public void onError(SHARE_MEDIA platform, int action, Throwable t) {
+            showProgressBar(false);
+            Toast.makeText(getApplicationContext(), "登录失败", Toast.LENGTH_SHORT).show();
+            Logger.d(t);
+        }
+
+        @Override
+        public void onCancel(SHARE_MEDIA platform, int action) {
+            showProgressBar(false);
+        }
+    };
+
+    @Override
+    protected void onDestroy() {
+        CustomShareBoard.onDestory(this);
+        super.onDestroy();
     }
 }

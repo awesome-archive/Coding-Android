@@ -4,10 +4,12 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <View style="@style/DivideLine" />
+
     <LinearLayout
         android:id="@+id/tabs"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="50dp"
         android:background="@color/stand_bg"
         android:gravity="center">
 
@@ -17,22 +19,11 @@
             android:layout_height="match_parent"
             android:layout_weight="1" />
 
-        <View
-            android:layout_width="1dp"
-            android:layout_height="18dp"
-            android:background="@color/divide_line" />
-
-
         <net.coding.program.project.detail.DropdownButton_
             android:id="@+id/chooseLabel"
             android:layout_width="0px"
             android:layout_height="match_parent"
             android:layout_weight="1" />
-
-        <View
-            android:layout_width="0.5dp"
-            android:layout_height="18dp"
-            android:background="#dddddd" />
 
         <net.coding.program.project.detail.DropdownButton_
             android:id="@+id/chooseOrder"
@@ -41,17 +32,32 @@
             android:layout_weight="1" />
     </LinearLayout>
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0.5dp"
-        android:background="@color/divide_line" />
+    <include layout="@layout/divide_line_1" />
 
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:background="@color/divide">
+
+        <android.support.v4.widget.SwipeRefreshLayout
+            android:id="@+id/swipeRefreshLayout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <ListView
+                android:id="@+id/listView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/divide"
+                android:divider="@drawable/divide_line_topic_list"
+                android:dividerHeight="@dimen/divide_height"
+                android:footerDividersEnabled="false" />
+
+        </android.support.v4.widget.SwipeRefreshLayout>
 
         <include
-            layout="@layout/common_refresh_listview"
+            android:id="@+id/blankLayout"
+            layout="@layout/view_exception"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 

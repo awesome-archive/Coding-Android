@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/linearlayout0"
+    android:layout_width="match_parent"
+    android:layout_height="50dp"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:background="@drawable/list_item_selector">
+
+    <ImageView
+        android:id="@+id/circleIcon"
+        android:layout_width="33dp"
+        android:layout_height="33dp"
+        android:layout_centerVertical="true"
+        android:layout_marginLeft="15dp"
+        android:scaleType="center"
+        android:src="@drawable/ic_task_project" />
+
+    <de.hdodenhof.circleimageview.CircleImageView
+        android:id="@+id/userIcon"
+        android:layout_width="33dp"
+        android:layout_height="33dp"
+        android:layout_centerVertical="true"
+        android:layout_marginLeft="15dp"
+        android:src="@drawable/ic_task_project" />
+
+    <TextView
+        android:id="@+id/text1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerVertical="true"
+        android:layout_marginLeft="63dp"
+        android:layout_weight="1"
+        android:text="项目名"
+        android:textColor="@color/font_1"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/text2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:layout_centerVertical="true"
+        android:layout_marginLeft="150dp"
+        android:layout_marginRight="15dp"
+        android:text="@string/no_pick"
+        android:singleLine="true"
+        tools:text="cc"
+        android:textColor="@color/font_3"
+        android:textSize="16sp" />
+
+    <View
+        android:id="@+id/topLine"
+        style="@style/DivideLine"
+        android:layout_marginLeft="63dp" />
+
+</RelativeLayout>

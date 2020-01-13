@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<View xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="@dimen/divide_section_10"
-    android:background="@drawable/divide_10_top_bottom"
-    tools:showIn="@layout_activity_user_detail_edit" />
+    android:background="@color/divide">
+
+    <include layout="@layout/divide_bottom" />
+
+    <View
+        style="@style/DivideSectionTop5"
+        android:layout_gravity="bottom" />
+
+</FrameLayout>

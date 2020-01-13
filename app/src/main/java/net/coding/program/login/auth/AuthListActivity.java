@@ -1,25 +1,28 @@
 package net.coding.program.login.auth;
 
-import android.app.AlertDialog;
+import android.Manifest;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.support.v7.app.AlertDialog;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import net.coding.program.BaseActivity;
+import com.tbruyelle.rxpermissions2.RxPermissions;
+
 import net.coding.program.R;
-import net.coding.program.common.CustomDialog;
+import net.coding.program.common.CodingColor;
 import net.coding.program.common.Global;
 import net.coding.program.common.WeakRefHander;
-import net.coding.program.model.AccountInfo;
+import net.coding.program.common.model.AccountInfo;
+import net.coding.program.common.ui.BaseActivity;
+import net.coding.program.common.umeng.UmengEvent;
 
 import java.util.ArrayList;
 
@@ -46,13 +49,16 @@ public class AuthListActivity extends BaseActivity implements Handler.Callback {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_auth_list);
+
+        umengEvent(UmengEvent.LOCAL, "查看2fa码");
+
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
         mClock = new TotpClock(this);
         mAuthAdapter = new AuthAdapter(this, 0);
         listView = (StickyListHeadersListView) findViewById(R.id.listView);
-        View footer = getLayoutInflater().inflate(R.layout.divide_15_top, null);
-        listView.addFooterView(footer);
+        View footer = getLayoutInflater().inflate(R.layout.divide_bottom_15, listView.getWrappedList(), false);
+        listView.addFooterView(footer, null, false);
         listView.setAdapter(mAuthAdapter);
 
         ArrayList<String> uris = AccountInfo.loadAuthDatas(this);
@@ -69,35 +75,26 @@ public class AuthListActivity extends BaseActivity implements Handler.Callback {
             showCoverDialog(extraData);
         }
 
-        listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                final AuthInfo info = mAuthAdapter.getItem((int) id);
+        listView.setOnItemLongClickListener((parent, view, position, id) -> {
+            final AuthInfo info = mAuthAdapter.getItem((int) id);
 
-                AlertDialog.Builder builder = new AlertDialog.Builder(AuthListActivity.this);
-                builder.setItems(R.array.auth_item_actions, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        if (which == 0) {
-                            Global.copy(AuthListActivity.this, info.getCode());
-                            showButtomToast(R.string.copy_code_finish);
-                        } else {
-                            showDialog("删除", "这是一个危险的操作，删除后可能会导致无法登录，确定删除吗？",
-                                    new DialogInterface.OnClickListener() {
-                                        @Override
-                                        public void onClick(DialogInterface dialog, int which) {
-                                            mAuthAdapter.remove(info);
-                                            mAuthAdapter.saveData();
-                                        }
-                                    });
-                        }
-                    }
-                });
+            AlertDialog.Builder builder = new AlertDialog.Builder(AuthListActivity.this, R.style.MyAlertDialogStyle);
+            builder.setItems(R.array.auth_item_actions, (dialog, which) -> {
+                if (which == 0) {
+                    Global.copy(AuthListActivity.this, info.getCode());
+                    showButtomToast(R.string.copy_code_finish);
+                } else {
+                    showWarnDialog("删除", "这是一个危险的操作，删除后可能会导致无法登录，确定删除吗？",
+                            (dialog1, which1) -> {
+                                mAuthAdapter.remove(info);
+                                mAuthAdapter.saveData();
+                            }, null,
+                            "确认",
+                            "取消");
+                }
+            }).show();
 
-                AlertDialog dialog = builder.show();
-                CustomDialog.dialogTitleLineColor(view.getContext(), dialog);
-                return true;
-            }
+            return true;
         });
 
         mWeakRefHandler = new WeakRefHander(this, TIME_UPDATE);
@@ -132,8 +129,15 @@ public class AuthListActivity extends BaseActivity implements Handler.Callback {
         int id = item.getItemId();
 
         if (id == R.id.action_add) {
-            Intent intent = new Intent(this, QRScanActivity.class);
-            startActivityForResult(intent, RESULT_ADD_ACCOUNT);
+            new AlertDialog.Builder(this)
+                    .setItems(R.array.add_qcode, ((dialog, which) -> {
+                        if (which == 0) {
+                            scanQCode();
+                        } else {
+                            manuallyQCode();
+                        }
+                    }))
+                    .show();
             return true;
         } else if (id == android.R.id.home) {
             finish();
@@ -141,6 +145,16 @@ public class AuthListActivity extends BaseActivity implements Handler.Callback {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private void scanQCode() {
+        Intent intent = new Intent(this, QRScanActivity.class);
+        intent.putExtra(QRScanActivity.EXTRA_OPEN_AUTH_LIST, false);
+        startActivityForResult(intent, RESULT_ADD_ACCOUNT);
+    }
+
+    private void manuallyQCode() {
+        ManuallyAddQCodeActivity_.intent(this).startForResult(RESULT_ADD_ACCOUNT);
     }
 
     @Override
@@ -203,7 +217,7 @@ public class AuthListActivity extends BaseActivity implements Handler.Callback {
 
                 TextView tv = (TextView) listItemView.findViewById(R.id.code);
                 if (phase >= 0.1) {
-                    tv.setTextColor(0xff3bbd79);
+                    tv.setTextColor(CodingColor.fontGreen);
                 } else {
                     tv.setTextColor(0xffe15957);
                 }

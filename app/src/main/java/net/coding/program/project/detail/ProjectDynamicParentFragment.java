@@ -3,11 +3,12 @@ package net.coding.program.project.detail;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentStatePagerAdapter;
 import android.support.v4.view.ViewPager;
+import android.support.v7.app.ActionBar;
 import android.util.TypedValue;
 
 import net.coding.program.R;
-import net.coding.program.common.network.BaseFragment;
-import net.coding.program.model.ProjectObject;
+import net.coding.program.common.model.ProjectObject;
+import net.coding.program.common.ui.BaseFragment;
 import net.coding.program.third.WechatTab;
 
 import org.androidannotations.annotations.AfterViews;
@@ -43,11 +44,17 @@ public class ProjectDynamicParentFragment extends BaseFragment {
 
     @AfterViews
     protected void init() {
+        getActionBar().setElevation(0);
         String[] title = dynamic_type;
         String[] titleParams = dynamic_type_params;
         if (mProjectObject.isPublic()) {
             title = dynamic_type_public;
             titleParams = dynamic_type_public_params;
+        }
+
+        ActionBar actionBar = getActionBar();
+        if (actionBar != null) {
+            actionBar.setElevation(0);
         }
 
         DynamicPagerAdapter adapter = new DynamicPagerAdapter(getChildFragmentManager(), title, titleParams);

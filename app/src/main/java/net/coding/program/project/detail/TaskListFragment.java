@@ -1,37 +1,37 @@
 package net.coding.program.project.detail;
 
-import android.animation.Animator;
-import android.animation.ValueAnimator;
-import android.content.DialogInterface;
+import android.app.Activity;
 import android.content.Intent;
-import android.graphics.PorterDuff;
-import android.os.Bundle;
-import android.view.LayoutInflater;
+import android.os.Build;
+import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.ImageView;
-import android.widget.SectionIndexer;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.loopj.android.http.RequestParams;
 import com.melnykov.fab.FloatingActionButton;
 
-import net.coding.program.MyApp;
 import net.coding.program.R;
-import net.coding.program.common.BlankViewDisplay;
+import net.coding.program.common.CodingColor;
 import net.coding.program.common.Global;
+import net.coding.program.common.GlobalCommon;
+import net.coding.program.common.GlobalData;
 import net.coding.program.common.ListModify;
+import net.coding.program.common.event.EventFilterDetail;
+import net.coding.program.common.event.EventRefreshTask;
+import net.coding.program.common.model.AccountInfo;
+import net.coding.program.common.model.ProjectObject;
+import net.coding.program.common.model.SingleTask;
 import net.coding.program.common.network.RefreshBaseFragment;
+import net.coding.program.common.umeng.UmengEvent;
+import net.coding.program.common.util.BlankViewHelp;
 import net.coding.program.common.widget.FlowLabelLayout;
-import net.coding.program.model.AccountInfo;
-import net.coding.program.model.ProjectObject;
-import net.coding.program.model.TaskObject;
-import net.coding.program.task.TaskListUpdate;
+import net.coding.program.network.model.user.Member;
+import net.coding.program.route.BlankViewDisplay;
 import net.coding.program.task.add.TaskAddActivity_;
 
 import org.androidannotations.annotations.AfterViews;
@@ -41,76 +41,85 @@ import org.androidannotations.annotations.FragmentArg;
 import org.androidannotations.annotations.OptionsItem;
 import org.androidannotations.annotations.ViewById;
 import org.androidannotations.annotations.res.StringArrayRes;
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.WeakHashMap;
 
-import se.emilsjolander.stickylistheaders.ExpandableStickyListHeadersListView;
 import se.emilsjolander.stickylistheaders.StickyListHeadersAdapter;
 import se.emilsjolander.stickylistheaders.StickyListHeadersListView;
 
-@EFragment(R.layout.fragment_task_list)
-public class TaskListFragment extends RefreshBaseFragment implements TaskListUpdate {
+import static android.view.View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS;
 
-    public static final String hostTaskDelete = Global.HOST_API + "/user/%s/project/%s/task/%s";
-    final SimpleDateFormat mDateFormat = new SimpleDateFormat("yyyy-MM-dd");
+@EFragment(R.layout.fragment_task_list)
+public class TaskListFragment extends RefreshBaseFragment {
+
+    public final String hostTaskDelete = getHostTaskDelete();
+    //统计，已完成，进行中数量
     final String urlTaskCountProject = Global.HOST_API + "/project/%d/task/user/count";
     final String urlTaskCountMy = Global.HOST_API + "/tasks/projects/count";
     final String URL_TASK_SATUS = Global.HOST_API + "/task/%s/status";
+    //筛选
+    final String URL_TASK_FILTER = Global.HOST_API + "/tasks/search?";
+    final String URL_TASK_FILTER_BLANK_KEYWORD = Global.HOST_API + "/tasks/list?";
     @FragmentArg
     boolean mShowAdd = false;
+    // 4.关键字筛选
+    // https://coding.net/api/tasks/search?keyword=Bug
     @FragmentArg
-    TaskObject.Members mMembers;
+    String mMeAction;
+
+    //筛选 有4种类型，
+    // https://coding.net/api/tasks/search?creator=52353&label=bug&status=2&keyword=Bug
+    //-------------------
+    // 1.我的任务，我关注的，我创建的
+    // https://coding.net/api/tasks/search?owner=52353
+    // https://coding.net/api/tasks/search?watcher=52353
+    // https://coding.net/api/tasks/search?creator=52353
+
+    // 2.进行中，已完成
+    // https://coding.net/api/tasks/search?status=1
+    // https://coding.net/api/tasks/search?status=2
+
+    // 3.标签筛选 标签内容
+    // https://coding.net/api/tasks/search?label=Bug
+    @FragmentArg
+    String mStatus;
+    @FragmentArg
+    String mLabel;
+    @FragmentArg
+    String mKeyword;
+    @FragmentArg
+    Member mMembers;
     @FragmentArg
     ProjectObject mProjectObject;
     @ViewById
     View blankLayout;
     @ViewById
     FloatingActionButton fab;
-    boolean mNeedUpdate = true;
-    ArrayList<TaskObject.SingleTask> mData = new ArrayList<>();
-    int mSectionId;
-    @StringArrayRes
-    String[] task_titles;
     @ViewById
     StickyListHeadersListView listView;
+    @StringArrayRes
+    String[] task_titles;
+
+    ArrayList<SingleTask> mData = new ArrayList<>();
+    int mSectionId;
     int mTaskCount[] = new int[2];
     boolean mUpdateAll = true;
     String urlAll = "";
-    View.OnClickListener onClickRetry = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            onRefresh();
-        }
-    };
+    View.OnClickListener onClickRetry = v -> onRefresh();
     TestBaseAdapter mAdapter;
-    String mToday = "";
-    String mTomorrow = "";
-    WeakHashMap<View, Integer> mOriginalViewHeightPool = new WeakHashMap<>();
-    private net.coding.program.task.TaskListParentUpdate mParent;
 
-    public void setParent(net.coding.program.task.TaskListParentUpdate parent) {
-        mParent = parent;
-    }
+    private View listFooter;
 
-    @Override
-    public void onCreate(Bundle saveInstanceState) {
-        super.onCreate(saveInstanceState);
-        setHasOptionsMenu(true);
-    }
+    private final EventRefreshTask sendEvent = new EventRefreshTask();
 
-    @Override
-    public void taskListUpdate() {
-        if (mNeedUpdate) {
-            mNeedUpdate = false;
-            initSetting();
-            loadData();
-        }
+    public static String getHostTaskDelete() {
+        return Global.HOST_API + "/user/%s/project/%s/task/%s";
     }
 
     @Override
@@ -121,9 +130,8 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
 
     @OptionsItem
     public void action_add() {
-        mNeedUpdate = true;
         Intent intent = new Intent(getActivity(), TaskAddActivity_.class);
-        TaskObject.SingleTask task = new TaskObject.SingleTask();
+        SingleTask task = new SingleTask();
         task.project = mProjectObject;
         task.project_id = mProjectObject.getId();
         task.owner = AccountInfo.loadAccount(getActivity());
@@ -135,13 +143,66 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
         getParentFragment().startActivityForResult(intent, ListModify.RESULT_EDIT_LIST);
     }
 
-    @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        mNeedUpdate = true;
-        return super.onCreateView(inflater, container, savedInstanceState);
+    //检查是否有筛选条件
+    String checkHostFilter() {
+        String host = "";
+        int userId = mMembers.user_id;
+
+        //项目内 不是全部任务
+        if (mShowAdd && userId != 0) {
+            if (!TextUtils.isEmpty(mMeAction)) {
+                host += String.format("owner=%s&", userId);
+            }
+            //关注，创建可以返回数据
+            if (!TextUtils.isEmpty(mMeAction) && !mMeAction.equals("owner")) {
+                if (!TextUtils.isEmpty(mMeAction)) {
+                    host += String.format("%s=%s&", mMeAction, GlobalData.sUserObject.id);
+                }
+            }
+        } else if (mShowAdd) {
+            //项目内 全部任务
+            if (!TextUtils.isEmpty(mMeAction) && !mMeAction.equals("owner")) {
+                host += String.format("%s=%s&", mMeAction, GlobalData.sUserObject.id);
+            }
+        } else {
+            //项目外
+            if (!TextUtils.isEmpty(mMeAction) && userId != 0) {
+                host += String.format("%s=%s&", mMeAction, userId);
+            }
+        }
+
+        if (!TextUtils.isEmpty(mStatus) && !mStatus.equals("0")) {
+            host += String.format("status=%s&", mStatus);
+        }
+        if (!TextUtils.isEmpty(mLabel)) {
+            host += String.format("label=%s&", Global.encodeUtf8(mLabel));
+        }
+        if (!TextUtils.isEmpty(mKeyword)) {
+            host += String.format("keyword=%s&", Global.encodeUtf8(mKeyword));
+        }
+        if (mProjectObject != null && !mProjectObject.isEmpty()) {
+            host += String.format("project_id=%s&", mProjectObject.getId());
+        }
+        //去掉最后一个 &
+        if (!TextUtils.isEmpty(host)) {
+            return host.substring(0, host.length() - 1);
+        }
+
+        return host;
     }
 
     String createHost(String userId, String type) {
+        //检查是否有筛选条件
+        String searchUrl = checkHostFilter();
+
+        if (!searchUrl.contains("keyword=")) {
+            return URL_TASK_FILTER_BLANK_KEYWORD + searchUrl;
+        }
+
+        if (!TextUtils.isEmpty(searchUrl)) {
+            return URL_TASK_FILTER + searchUrl;
+        }
+
         String BASE_HOST = Global.HOST_API + "%s/tasks%s?";
         String userType;
         if (mProjectObject.isEmpty()) {
@@ -155,128 +216,60 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
             }
         }
 
-        return String.format(BASE_HOST, mProjectObject.backend_project_path, userType);
+        return String.format(BASE_HOST, mProjectObject.getBackendProjectPath(), userType);
     }
 
     @AfterViews
-    protected void init() {
+    protected void initTaskListFragment() {
         initRefreshLayout();
 
-        mData = AccountInfo.loadTasks(getActivity(), mProjectObject.getId(), mMembers.id);
+        SingleTask.initDate();
 
-        Calendar calendar = Calendar.getInstance();
-        mToday = mDateFormat.format(calendar.getTimeInMillis());
-        mTomorrow = mDateFormat.format(calendar.getTimeInMillis() + 1000 * 60 * 60 * 24);
-
-        mNeedUpdate = true;
         mAdapter = new TestBaseAdapter();
 
         fab.attachToListView(listView.getWrappedList());
         fab.setVisibility(View.GONE);
-//        listView.setAnimExecutor(new AnimationExecutor());
-        View footer = getActivity().getLayoutInflater().inflate(R.layout.divide_15_top, null);
-        listView.addFooterView(footer, null, false);
+        listFooter = getActivity().getLayoutInflater().inflate(R.layout.divide_bottom_15, listView.getWrappedList(), false);
+        listView.setAreHeadersSticky(false);
+        listView.addFooterView(listFooter, null, false);
         listView.setAdapter(mAdapter);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            listView.setImportantForAutofill(IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
+        }
 
-        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                TaskObject.SingleTask singleTask = (TaskObject.SingleTask) mAdapter.getItem(position);
-//                if (singleTask.status == 1) {
-                mNeedUpdate = true;
-                Intent intent = new Intent(getActivity(), TaskAddActivity_.class);
-                intent.putExtra("mSingleTask", singleTask);
-                getParentFragment().startActivityForResult(intent, ListModify.RESULT_EDIT_LIST);
-//                }
-            }
+        updateFootStyle();
+
+        listView.setOnItemClickListener((parent, view, position, id) -> {
+            SingleTask singleTask = (SingleTask) mAdapter.getItem(position);
+
+            TaskAddActivity_.intent(getParentFragment())
+                    .mSingleTask(singleTask)
+                    .canPickProject(false)
+                    .startForResult(ListModify.RESULT_EDIT_LIST);
         });
 
-        listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(AdapterView<?> parent, View view, final int position, long id) {
-                String content = mData.get(position).content;
-                showDialog("删除任务", content, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        deleteTask(position);
-                    }
-                });
-
-                return true;
-            }
+        listView.setOnItemLongClickListener((parent, view, position, id) -> {
+            String content = mData.get(position).content;
+            showDialog("删除任务", content, (dialog, which) -> deleteTask(position));
+            return true;
         });
 
-//        if (getParentFragment() instanceof FloatButton) {
-//            listView.setOnScrollListener(new AbsListView.OnScrollListener() {
-//                private int mLastScrollY;
-//                private int mPreviousFirstVisibleItem;
-//                private int mScrollThreshold;
-//
-//                @Override
-//                public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
-//                    if(totalItemCount == 0) return;
-//                    if (isSameRow(firstVisibleItem)) {
-//                        int newScrollY = getTopItemScrollY(view);
-//                        boolean isSignificantDelta = Math.abs(mLastScrollY - newScrollY) > mScrollThreshold;
-//                        if (isSignificantDelta) {
-//                            if (mLastScrollY > newScrollY) {
-//                                onScrollUp();
-//                            } else {
-//                                onScrollDown();
-//                            }
-//                        }
-//                        mLastScrollY = newScrollY;
-//                    } else {
-//                        if (firstVisibleItem > mPreviousFirstVisibleItem) {
-//                            onScrollUp();
-//                        } else {
-//                            onScrollDown();
-//                        }
-//
-//                        mLastScrollY = getTopItemScrollY(view);
-//                        mPreviousFirstVisibleItem = firstVisibleItem;
-//                    }
-//                }
-//
-//                private boolean isSameRow(int firstVisibleItem) {
-//                    return firstVisibleItem == mPreviousFirstVisibleItem;
-//                }
-//
-//                private int getTopItemScrollY(AbsListView mListView) {
-//                    if (mListView == null || mListView.getChildAt(0) == null) return 0;
-//                    View topChild = mListView.getChildAt(0);
-//                    return topChild.getTop();
-//                }
-//
-////                private ScrollDirectionListener mScrollDirectionListener;
-////                private AbsListView.OnScrollListener mOnScrollListener;
-////
-////                private void setScrollDirectionListener(ScrollDirectionListener scrollDirectionListener) {
-////                    mScrollDirectionListener = scrollDirectionListener;
-////                }
-////
-////                public void setOnScrollListener(AbsListView.OnScrollListener onScrollListener) {
-////                    mOnScrollListener = onScrollListener;
-////                }
-//
-//
-//                @Override
-//                public void onScrollStateChanged(AbsListView view, int scrollState) {
-//                }
-//
-//                private void onScrollDown() {
-//                    ((FloatButton) getParentFragment()).showFloatButton(true);
-//                }
-//
-//                private void onScrollUp() {
-//                    ((FloatButton) getParentFragment()).showFloatButton(false);
-//                }
-//            });
-//        }
+        initUrlAndLoadData();
+    }
 
+    private void initUrlAndLoadData() {
         urlAll = createHost(mMembers.user.global_key, "/all");
 
-        loadData();
+        taskListUpdate(null);
+        taskFragmentLoading(true);
+    }
+
+    private void updateFootStyle() {
+        if (mData.isEmpty()) {
+            listFooter.setVisibility(View.INVISIBLE);
+        } else {
+            listFooter.setVisibility(View.VISIBLE);
+        }
     }
 
     @Click
@@ -297,6 +290,7 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
         }
     }
 
+
     @Override
     protected void initSetting() {
         super.initSetting();
@@ -308,10 +302,15 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
         mUpdateAll = true;
     }
 
+    public void taskFragmentLoading(boolean isLoading) {
+        BlankViewHelp.setBlankLoading(blankLayout, isLoading);
+    }
+
     @Override
     public void parseJson(int code, JSONObject respanse, String tag, int pos, Object data) throws JSONException {
         if (tag.equals(urlAll)) {
             setRefreshing(false);
+            taskFragmentLoading(false);
 
             if (code == 0) {
                 if (mUpdateAll) {
@@ -319,19 +318,18 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
                     mUpdateAll = false;
                 }
 
-                JSONObject jsonData = respanse.getJSONObject("data");
-                JSONArray array = jsonData.getJSONArray("list");
-                for (int i = 0; i < array.length(); ++i) {
-                    TaskObject.SingleTask task = new TaskObject.SingleTask(array.getJSONObject(i));
-                    mData.add(task);
-                    if (task.status == 1) {
-                        ++mSectionId;
+                JSONObject jsonData = respanse.optJSONObject("data");
+                if (jsonData != null) {
+                    JSONArray array = jsonData.optJSONArray("list");
+                    if (array != null) {
+                        for (int i = 0; i < array.length(); ++i) {
+                            SingleTask task = new SingleTask(array.getJSONObject(i));
+                            mData.add(task);
+                        }
                     }
                 }
 
-                if (array.length() > 0) {
-                    mAdapter.notifyDataSetChanged();
-                }
+                mAdapter.notifyDataSetChanged();
 
                 AccountInfo.saveTasks(getActivity(), mData, mProjectObject.getId(), mMembers.id);
                 BlankViewDisplay.setBlank(mData.size(), this, true, blankLayout, onClickRetry);
@@ -372,37 +370,30 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
 
         } else if (tag.equals(hostTaskDelete)) {
             if (code == 0) {
+                umengEvent(UmengEvent.TASK, "删除任务");
                 mData.remove(pos);
                 mAdapter.notifyDataSetChanged();
-                if (mParent != null) {
-                    mNeedUpdate = false;
-                    mParent.taskListParentUpdate();
-                }
-
+                EventBus.getDefault().post(sendEvent);
             } else {
                 showErrorMsg(code, respanse);
             }
         } else if (tag.equals(URL_TASK_SATUS)) {
             if (code == 0) {
-                TaskParam param = (TaskParam) data;
-                TaskObject.SingleTask task = param.mTask;
-                task.status = param.mStatus;
+                umengEvent(UmengEvent.TASK, "修改任务");
+                umengEvent(UmengEvent.E_TASK, "标记完成");
 
-                if (mParent != null) {
-                    mNeedUpdate = false;
-                    mParent.taskListParentUpdate();
-                }
+                TaskParam param = (TaskParam) data;
+                SingleTask task = param.mTask;
+                task.status = param.mStatus;
 
             } else {
                 Toast.makeText(getActivity(), "修改任务失败", Toast.LENGTH_SHORT).show();
             }
-
-            mAdapter.notifyDataSetChanged();
         }
     }
 
     void deleteTask(final int pos) {
-        TaskObject.SingleTask task = mData.get(pos);
+        SingleTask task = mData.get(pos);
         String url = String.format(hostTaskDelete, task.project.owner_user_name, task.project.name, task.getId());
         deleteNetwork(url, hostTaskDelete, pos, null);
     }
@@ -414,24 +405,69 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
         putNetwork(String.format(URL_TASK_SATUS, id), params, URL_TASK_SATUS, new TaskParam(mData.get(pos), completeStatus));
     }
 
-    public interface FloatButton {
-        void showFloatButton(boolean show);
+    @Override
+    public void onAttach(Activity activity) {
+        super.onAttach(activity);
+        EventBus.getDefault().register(this);
+    }
+
+    @Override
+    public void onDetach() {
+        super.onDetach();
+        EventBus.getDefault().unregister(this);
+    }
+
+    //筛选后刷新
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onEvent(EventFilterDetail eventFilter) {
+        mMeAction = eventFilter.meAction;
+        mStatus = eventFilter.status;
+        mLabel = eventFilter.label;
+        mKeyword = eventFilter.keyword;
+
+        //重新加载所有
+        mUpdateAll = true;
+        initUrlAndLoadData();
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void taskListUpdate(EventRefreshTask refrushTask) {
+        if (sendEvent == refrushTask) return;
+
+        initSetting();
+        loadData();
     }
 
     static class TaskParam {
-        TaskObject.SingleTask mTask;
+        SingleTask mTask;
         int mStatus;
 
-        TaskParam(TaskObject.SingleTask mTask, int mStatus) {
+        TaskParam(SingleTask mTask, int mStatus) {
             this.mTask = mTask;
             this.mStatus = mStatus;
         }
     }
 
     public class TestBaseAdapter extends BaseAdapter implements
-            StickyListHeadersAdapter, SectionIndexer {
+            StickyListHeadersAdapter {
 
         public TestBaseAdapter() {
+        }
+
+        @Override
+        public void notifyDataSetChanged() {
+            mSectionId = 0;
+            for (SingleTask item : mData) {
+                if (item.status == SingleTask.STATUS_PROGRESS) {
+                    ++mSectionId;
+                } else {
+                    break;
+                }
+            }
+
+            updateFootStyle();
+
+            super.notifyDataSetChanged();
         }
 
         @Override
@@ -452,14 +488,13 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             ViewHolder holder;
-
             if (convertView == null) {
                 holder = new ViewHolder();
                 convertView = mInflater.inflate(R.layout.fragment_task_list_item, parent, false);
                 holder.mCheckBox = (CheckBox) convertView.findViewById(R.id.checkbox);
                 holder.mTitle = (TextView) convertView.findViewById(R.id.title);
                 holder.mDeadline = (TextView) convertView.findViewById(R.id.deadline);
-                holder.mDeadline.setBackgroundResource(R.drawable.task_list_item_deadline_background);
+                holder.mDeadline.setBackgroundResource(R.drawable.task_list_item_deadline_background2);
                 holder.mName = (TextView) convertView.findViewById(R.id.name);
                 holder.mTime = (TextView) convertView.findViewById(R.id.time);
                 holder.mDiscuss = (TextView) convertView.findViewById(R.id.discuss);
@@ -469,46 +504,36 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
                 holder.mLayoutDeadline = convertView.findViewById(R.id.layoutDeadline);
                 holder.mRefId = (TextView) convertView.findViewById(R.id.referenceId);
                 holder.flowLabelLayout = (FlowLabelLayout) convertView.findViewById(R.id.flowLayout);
+                holder.bottomLine = convertView.findViewById(R.id.bottomLine);
                 convertView.setTag(holder);
             } else {
                 holder = (ViewHolder) convertView.getTag();
             }
 
-            final TaskObject.SingleTask data = (TaskObject.SingleTask) getItem(position);
+            final SingleTask data = (SingleTask) getItem(position);
             holder.mTitle.setText("      " + data.content);
+            holder.mTitle.setTextColor(data.isDone() ? CodingColor.font4 : CodingColor.font1);
 
             holder.mRefId.setText(data.getNumber());
             holder.mName.setText(data.creator.name);
-            holder.mTime.setText(Global.dayToNow(data.created_at));
+            holder.mTime.setText(Global.dayToNow(data.created_at, false));
             holder.mDiscuss.setText(String.valueOf(data.comments));
             iconfromNetwork(holder.mIcon, data.owner.avatar);
 
-
-            int flowWidth = MyApp.sWidthPix - Global.dpToPx(100 + 12); // item 左边空 100 dp，右边空12dp
+            int flowWidth = GlobalData.sWidthPix - GlobalCommon.dpToPx(100 + 15); // item 左边空 100 dp，右边空15dp
             if (!data.deadline.isEmpty()) {
-                flowWidth -= Global.dpToPx(55);
+                flowWidth -= GlobalCommon.dpToPx(55);
             }
             holder.flowLabelLayout.setLabels(data.labels, flowWidth);
 
             final int pos = position;
 
             holder.mCheckBox.setOnCheckedChangeListener(null);
-            if (data.status == 1) {
-                holder.mCheckBox.setChecked(false);
-            } else {
-                holder.mCheckBox.setChecked(true);
-            }
+            holder.mCheckBox.setChecked(data.isDone());
 
             holder.mTaskDes.setVisibility(data.has_description ? View.VISIBLE : View.INVISIBLE);
 
-            final int priorityIcons[] = new int[]{
-                    R.drawable.task_mark_0,
-                    R.drawable.task_mark_1,
-                    R.drawable.task_mark_2,
-                    R.drawable.task_mark_3,
-            };
-
-            holder.mTaskPriority.setBackgroundResource(priorityIcons[data.priority]);
+            holder.mTaskPriority.setBackgroundResource(data.getPriorityIcon());
 
             if (data.deadline.isEmpty() && data.labels.isEmpty()) {
                 holder.mLayoutDeadline.setVisibility(View.GONE);
@@ -516,49 +541,17 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
                 holder.mLayoutDeadline.setVisibility(View.VISIBLE);
             }
 
-            int[] taskColors = new int[]{
-                    0xfff49f31,
-                    0xff97ba66,
-                    0xfff24b4b,
-                    0xffb2c6d0,
-                    0xffc7c8c7
-            };
 
-            if (data.deadline.isEmpty()) {
-                holder.mDeadline.setVisibility(View.GONE);
-            } else {
-                holder.mDeadline.setVisibility(View.VISIBLE);
+            SingleTask.setDeadline(holder.mDeadline, data);
 
-                if (data.deadline.equals(mToday)) {
-                    holder.mDeadline.setText("今天");
-                    holder.setDeadlineColor(taskColors[0]);
-                } else if (data.deadline.equals(mTomorrow)) {
-                    holder.mDeadline.setText("明天");
-                    holder.setDeadlineColor(taskColors[1]);
-                } else {
-                    if (data.deadline.compareTo(mToday) < 0) {
-                        holder.setDeadlineColor(taskColors[2]);
-                    } else {
-                        holder.setDeadlineColor(taskColors[3]);
-                    }
-                    String num[] = data.deadline.split("-");
-                    holder.mDeadline.setText(String.format("%s/%s", num[1], num[2]));
-                }
-
-                if (data.isDone()) {
-                    holder.setDeadlineColor(taskColors[4]);
-                }
-            }
-
-            holder.mCheckBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-                @Override
-                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                    statusTask(pos, data.getId(), isChecked);
-                }
-            });
+            holder.mCheckBox.setOnCheckedChangeListener((buttonView, isChecked) ->
+                    statusTask(pos, data.getId(), isChecked));
 
             if (position == mData.size() - 1) {
+                holder.bottomLine.setVisibility(View.INVISIBLE);
                 loadData();
+            } else {
+                holder.bottomLine.setVisibility(View.VISIBLE);
             }
 
             return convertView;
@@ -566,52 +559,19 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
 
         @Override
         public View getHeaderView(int position, View convertView, ViewGroup parent) {
-            HeaderViewHolder holder;
             if (convertView == null) {
-                holder = new HeaderViewHolder();
-                convertView = mInflater.inflate(R.layout.fragment_project_dynamic_list_head, parent, false);
-                holder.mHead = (TextView) convertView.findViewById(R.id.head);
-                convertView.setTag(holder);
-            } else {
-                holder = (HeaderViewHolder) convertView.getTag();
+                convertView = mInflater.inflate(R.layout.divide_top_15, parent, false);
             }
-
-            int type = getSectionForPosition(position);
-            String title = task_titles[type];
-            holder.mHead.setText(title);
 
             return convertView;
         }
 
         @Override
         public long getHeaderId(int position) {
-            return getSectionForPosition(position);
+            return 0;
         }
 
-        @Override
-        public int getPositionForSection(int section) {
-            return section;
-        }
-
-        @Override
-        public int getSectionForPosition(int position) {
-            if (position < mSectionId) {
-                return 0;
-            } else {
-                return 1;
-            }
-        }
-
-        @Override
-        public Object[] getSections() {
-            return task_titles;
-        }
-
-        class HeaderViewHolder {
-            TextView mHead;
-        }
-
-        class ViewHolder {
+        private class ViewHolder {
             CheckBox mCheckBox;
             ImageView mIcon;
             TextView mTitle;
@@ -625,67 +585,7 @@ public class TaskListFragment extends RefreshBaseFragment implements TaskListUpd
             View mLayoutDeadline;
             FlowLabelLayout flowLabelLayout;
             TextView mRefId;
-
-            public void setDeadlineColor(int color) {
-                mDeadline.getBackground().setColorFilter(color, PorterDuff.Mode.SRC_IN);
-                mDeadline.setTextColor(color);
-            }
-        }
-    }
-
-    //animation executor
-    class AnimationExecutor implements ExpandableStickyListHeadersListView.IAnimationExecutor {
-
-        @Override
-        public void executeAnim(final View target, final int animType) {
-            if (ExpandableStickyListHeadersListView.ANIMATION_EXPAND == animType && target.getVisibility() == View.VISIBLE) {
-                return;
-            }
-            if (ExpandableStickyListHeadersListView.ANIMATION_COLLAPSE == animType && target.getVisibility() != View.VISIBLE) {
-                return;
-            }
-            if (mOriginalViewHeightPool.get(target) == null) {
-                mOriginalViewHeightPool.put(target, target.getHeight());
-            }
-            final int viewHeight = mOriginalViewHeightPool.get(target);
-            float animStartY = animType == ExpandableStickyListHeadersListView.ANIMATION_EXPAND ? 0f : viewHeight;
-            float animEndY = animType == ExpandableStickyListHeadersListView.ANIMATION_EXPAND ? viewHeight : 0f;
-            final ViewGroup.LayoutParams lp = target.getLayoutParams();
-            ValueAnimator animator = ValueAnimator.ofFloat(animStartY, animEndY);
-            animator.setDuration(200);
-            target.setVisibility(View.VISIBLE);
-            animator.addListener(new Animator.AnimatorListener() {
-                @Override
-                public void onAnimationStart(Animator animator) {
-                }
-
-                @Override
-                public void onAnimationEnd(Animator animator) {
-                    if (animType == ExpandableStickyListHeadersListView.ANIMATION_EXPAND) {
-                        target.setVisibility(View.VISIBLE);
-                    } else {
-                        target.setVisibility(View.GONE);
-                    }
-                    target.getLayoutParams().height = viewHeight;
-                }
-
-                @Override
-                public void onAnimationCancel(Animator animator) {
-                }
-
-                @Override
-                public void onAnimationRepeat(Animator animator) {
-                }
-            });
-            animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-                @Override
-                public void onAnimationUpdate(ValueAnimator valueAnimator) {
-                    lp.height = ((Float) valueAnimator.getAnimatedValue()).intValue();
-                    target.setLayoutParams(lp);
-                    target.requestLayout();
-                }
-            });
-            animator.start();
-        }
+            View bottomLine;
+       }
     }
 }

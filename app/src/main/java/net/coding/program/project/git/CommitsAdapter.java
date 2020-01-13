@@ -9,8 +9,8 @@ import android.widget.TextView;
 import net.coding.program.R;
 import net.coding.program.common.Global;
 import net.coding.program.common.comment.BaseCommentParam;
-import net.coding.program.model.Commit;
-import net.coding.program.project.detail.ProjectDynamicFragment;
+import net.coding.program.common.model.Commit;
+import net.coding.program.login.auth.Utilities;
 import net.coding.program.project.detail.merge.SimpleData1Adaper;
 
 import java.util.ArrayList;
@@ -20,7 +20,6 @@ import se.emilsjolander.stickylistheaders.StickyListHeadersAdapter;
 
 /**
  * Created by chenchao on 15/5/29.
- *
  */
 public class CommitsAdapter extends SimpleData1Adaper<Commit> implements StickyListHeadersAdapter, SectionIndexer {
 
@@ -28,6 +27,7 @@ public class CommitsAdapter extends SimpleData1Adaper<Commit> implements StickyL
     String sYesterday = "";
     private ArrayList<Long> mSectionTitle = new ArrayList<>();
     private ArrayList<Integer> mSectionId = new ArrayList<>();
+
     public CommitsAdapter(BaseCommentParam param) {
         super(param);
 
@@ -65,7 +65,7 @@ public class CommitsAdapter extends SimpleData1Adaper<Commit> implements StickyL
         if (convertView == null) {
             holder = new HeaderViewHolder();
             convertView = LayoutInflater.from(parent.getContext()).inflate(R.layout.commit_list_section, parent, false);
-            holder.mHead = (TextView) convertView.findViewById(R.id.sectionTitle);
+            holder.mHead = convertView.findViewById(R.id.sectionTitle);
             convertView.setTag(holder);
         } else {
             holder = (HeaderViewHolder) convertView.getTag();
@@ -102,7 +102,7 @@ public class CommitsAdapter extends SimpleData1Adaper<Commit> implements StickyL
 
             for (int i = 0; i < getCount(); ++i) {
                 nowTime.setTimeInMillis(((Commit) getItem(i)).getCommitTime());
-                if (ProjectDynamicFragment.isDifferentDay(lastTime, nowTime)) {
+                if (Utilities.isDifferentDay(lastTime, nowTime)) {
                     lastTime.setTimeInMillis(nowTime.getTimeInMillis());
                     mSectionTitle.add(lastTime.getTimeInMillis());
                     mSectionId.add(i);

@@ -4,9 +4,22 @@
     android:layout_height="wrap_content"
     android:orientation="vertical">
 
-    <include layout="@layout/divide_15_top_bottom" />
+    <LinearLayout
+        android:id="@+id/gap_to_list"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <View
+            android:background="@color/stand_bg"
+            android:layout_width="match_parent"
+            android:layout_height="20dp" />
+
+        <include layout="@layout/divide_middle_15" />
+
+    </LinearLayout>
 
     <include layout="@layout/list_item_add_comment" />
 
-    <include layout="@layout/divide_15_top" />
+    <include layout="@layout/divide_bottom_15" />
 </LinearLayout>

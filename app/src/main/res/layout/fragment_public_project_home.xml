@@ -35,11 +35,11 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_margin="@dimen/padding_15"
-                    android:textColor="@color/font_black_2"
+                    android:textColor="@color/font_1"
                     android:textSize="15sp" />
             </LinearLayout>
 
-            <include layout="@layout/divide_15_top_bottom" />
+            <include layout="@layout/divide_middle_15" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -57,19 +57,19 @@
                         android:id="@+id/itemDynamic"
                         layout="@layout/project_home_list_head_button1" />
 
-                    <include layout="@layout/divideline_15" />
+                    <View style="@style/DivideLineHomeList" />
 
                     <include
                         android:id="@+id/itemTopic"
                         layout="@layout/project_home_list_head_button" />
 
-                    <include layout="@layout/divideline_15" />
+                    <View style="@style/DivideLineHomeList" />
 
                     <include
                         android:id="@+id/itemCode"
                         layout="@layout/project_home_list_head_button" />
 
-                    <include layout="@layout/divideline_15" />
+                    <View style="@style/DivideLineHomeList" />
 
                     <include
                         android:id="@+id/itemMember"
@@ -79,7 +79,7 @@
 
             </LinearLayout>
 
-            <include layout="@layout/divide_15_top_bottom" />
+            <include layout="@layout/divide_middle_15" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -91,7 +91,7 @@
                     android:id="@+id/itemReadme"
                     layout="@layout/project_home_list_head_button" />
 
-                <include layout="@layout/divideline_15" />
+                <View style="@style/DivideLineHomeList" />
 
                 <include
                     android:id="@+id/itemMerge"
@@ -99,7 +99,8 @@
 
             </LinearLayout>
 
-            <include layout="@layout/divide_15_top" />
+
+            <include layout="@layout/divide_bottom_15" />
 
         </LinearLayout>
     </ScrollView>
@@ -109,20 +110,23 @@
         android:layout_height="wrap_content"
         android:background="@color/stand_bg"
         android:orientation="horizontal"
-        android:padding="@dimen/padding_15">
+        android:paddingBottom="10dp"
+        android:paddingLeft="@dimen/padding_15"
+        android:paddingRight="@dimen/padding_15"
+        android:paddingTop="10dp">
 
         <include
             android:id="@+id/buttonStar"
             layout="@layout/project_home_list_head_public_button"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="36dp"
             android:layout_weight="1" />
 
         <include
             android:id="@+id/buttonWatch"
             layout="@layout/project_home_list_head_public_button"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="36dp"
             android:layout_marginLeft="8dp"
             android:layout_weight="1" />
 
@@ -130,7 +134,7 @@
             android:id="@+id/buttonFork"
             layout="@layout/project_home_list_head_public_button"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="36dp"
             android:layout_marginLeft="8dp"
             android:layout_weight="1" />
 

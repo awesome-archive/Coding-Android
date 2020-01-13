@@ -5,13 +5,10 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import net.coding.program.R;
-import net.coding.program.common.SearchCache;
-import net.coding.program.model.Subject;
-import net.coding.program.subject.service.ISubjectRecommendObject;
+import net.coding.program.common.model.ISubjectRecommendObject;
 
 import java.util.List;
 
@@ -57,7 +54,6 @@ public class SubjectLastListAdapter extends BaseAdapter implements StickyListHea
             viewHolder = new ViewHolder();
             viewHolder.name = (TextView) convertView.findViewById(R.id.subject_recommend_list_item_name);
             convertView.setTag(viewHolder);
-
         } else {
             viewHolder = (ViewHolder) convertView.getTag();
         }
@@ -74,21 +70,23 @@ public class SubjectLastListAdapter extends BaseAdapter implements StickyListHea
     public View getHeaderView(int position, View convertView, ViewGroup viewGroup) {
         ViewHolder viewHolder = null;
         if (convertView == null) {
-            convertView = LayoutInflater.from(mContext).inflate(R.layout.subject_recommend_list_item_header, null);
+            convertView = LayoutInflater.from(mContext).inflate(R.layout.subject_recommend_list_item_header, viewGroup, false);
             viewHolder = new ViewHolder();
             viewHolder.name = (TextView) convertView.findViewById(R.id.subject_recommend_list_item_header_name);
             convertView.setTag(viewHolder);
-
         } else {
             viewHolder = (ViewHolder) convertView.getTag();
         }
         if (items != null && position >= 0 && position < items.size()) {
             ISubjectRecommendObject recommendObject = items.get(position);
             if (recommendObject != null) {
-                if (recommendObject.getType() == 1)
+                if (recommendObject.getType() == 1) {
+                    viewHolder.name.setText("热门话题");
+                } else if (recommendObject.getType() == 2) {
                     viewHolder.name.setText("热门推荐");
-                else
+                } else {
                     viewHolder.name.setText("最近使用");
+                }
             }
         }
         return convertView;

@@ -1,17 +1,19 @@
 package net.coding.program.project.detail.file;
 
 import android.content.Intent;
+import android.support.v7.widget.SwitchCompat;
 import android.view.View;
-import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.TextView;
 
-import net.coding.program.BackActivity;
 import net.coding.program.R;
 import net.coding.program.common.Global;
-import net.coding.program.model.AttachmentFileObject;
-import net.coding.program.model.PostRequest;
-import net.coding.program.model.ProjectObject;
+import net.coding.program.common.model.ProjectObject;
+import net.coding.program.common.model.RequestData;
+import net.coding.program.common.model.Share;
+import net.coding.program.common.model.ShareParam;
+import net.coding.program.common.ui.BackActivity;
+import net.coding.program.common.umeng.UmengEvent;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.Click;
@@ -31,13 +33,13 @@ public class ShareFileLinkActivity extends BackActivity {
     ProjectObject mProject;
 
     @Extra
-    AttachmentFileObject mAttachmentFileObject;
+    ShareParam mAttachmentFileObject;
 
     @ViewById
     View layoutShareLink;
 
     @ViewById
-    CheckBox clickSettingShare;
+    SwitchCompat clickSettingShare;
 
     @ViewById
     TextView linkContent;
@@ -46,7 +48,7 @@ public class ShareFileLinkActivity extends BackActivity {
         @Override
         public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
             if (clickSettingShare.isChecked()) {
-                PostRequest request = mAttachmentFileObject.getHttpShareLinkOn(mProject);
+                RequestData request = mAttachmentFileObject.getHttpShareLinkOn(mProject);
                 postNetwork(request, TAG_SHARE_LINK_ON);
             } else {
                 String url = mAttachmentFileObject.getHttpShareLinkOff();
@@ -84,7 +86,8 @@ public class ShareFileLinkActivity extends BackActivity {
         if (tag.equals(TAG_SHARE_LINK_ON)) {
             showProgressBar(false);
             if (code == 0) {
-                AttachmentFileObject.Share mShare = new AttachmentFileObject.Share(respanse.optJSONObject("data"));
+                umengEvent(UmengEvent.FILE, "开启共享");
+                Share mShare = new Share(respanse.optJSONObject("data"));
                 mAttachmentFileObject.setShereLink(mShare.getUrl());
                 bindData();
             } else {
@@ -93,6 +96,7 @@ public class ShareFileLinkActivity extends BackActivity {
         } else if (tag.equals(TAG_SHARE_LINK_OFF)) {
             showProgressBar(false);
             if (code == 0) {
+                umengEvent(UmengEvent.FILE, "关闭共享");
                 mAttachmentFileObject.setShereLink("");
                 bindData();
             } else {
@@ -113,7 +117,7 @@ public class ShareFileLinkActivity extends BackActivity {
     @Override
     public void finish() {
         Intent intent = new Intent();
-        intent.putExtra("data", mAttachmentFileObject);
+        intent.putExtra("intentData", mAttachmentFileObject);
         setResult(RESULT_OK, intent);
         super.finish();
     }

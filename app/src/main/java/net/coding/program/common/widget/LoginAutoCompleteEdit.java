@@ -15,15 +15,17 @@ import android.widget.AutoCompleteTextView;
 import android.widget.TextView;
 
 import net.coding.program.R;
-import net.coding.program.common.enter.SimpleTextWatcher;
-import net.coding.program.model.AccountInfo;
+import net.coding.program.common.model.AccountInfo;
+import net.coding.program.common.widget.input.SimpleTextWatcher;
 
 public class LoginAutoCompleteEdit extends AutoCompleteTextView {
     private static final String TAG = "LoginAutoCompleteEdit";
 
     private boolean mDisableAuto = false;
+    private boolean showClear = true;
 
     private String[] emailSufixs;
+    private Drawable drawable;
 
     public LoginAutoCompleteEdit(Context context) {
         super(context);
@@ -50,10 +52,12 @@ public class LoginAutoCompleteEdit extends AutoCompleteTextView {
 
         boolean emailOnly = false;
         boolean useDark = false;
+        boolean closeAutoComplete = false;
         TypedArray a = context.getTheme().obtainStyledAttributes(attrs, R.styleable.AutoComplete, 0, 0);
         try {
             emailOnly = a.getBoolean(R.styleable.AutoComplete_emailOnly, false);
             useDark = a.getBoolean(R.styleable.AutoComplete_darkness, false);
+            closeAutoComplete = a.getBoolean(R.styleable.AutoComplete_closeAutoComplete, true);
         } finally {
             a.recycle();
         }
@@ -78,15 +82,18 @@ public class LoginAutoCompleteEdit extends AutoCompleteTextView {
             emailSufixs = email;
         }
 
-        this.setAdapter(new EmailAutoCompleteAdapter(context, R.layout.login_auto_complete_item, emailSufixs));
-
-        this.setThreshold(1);
+        if (closeAutoComplete) {
+            this.setAdapter(new EmailAutoCompleteAdapter(context, R.layout.login_auto_complete_item, emailSufixs));
+            this.setThreshold(1);
+        }
     }
 
-    private Drawable drawable;
+    public void showClear(boolean show) {
+        showClear = show;
+    }
 
     private void displayDelete(boolean show) {
-        if (show) {
+        if (show && showClear) {
             setDrawableRight(drawable);
         } else {
             setDrawableRight(null);
@@ -103,7 +110,6 @@ public class LoginAutoCompleteEdit extends AutoCompleteTextView {
             if (getCompoundDrawables()[2] != null) {
                 boolean touchable = event.getX() > (getWidth() - getTotalPaddingRight())
                         && (event.getX() < ((getWidth() - getPaddingRight())));
-
                 if (touchable) {
                     this.setText("");
                 }
@@ -158,7 +164,7 @@ public class LoginAutoCompleteEdit extends AutoCompleteTextView {
             View v = convertView;
             if (v == null)
                 v = LayoutInflater.from(getContext()).inflate(
-                        R.layout.login_auto_complete_item, null);
+                        R.layout.login_auto_complete_item, parent, false);
             TextView tv = (TextView) v.findViewById(R.id.tv);
 
             String input = LoginAutoCompleteEdit.this.getText().toString();

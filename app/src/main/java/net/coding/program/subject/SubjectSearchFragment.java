@@ -10,9 +10,9 @@ import android.widget.TextView;
 import net.coding.program.R;
 import net.coding.program.common.Global;
 import net.coding.program.common.MyImageGetter;
-import net.coding.program.common.network.BaseFragment;
+import net.coding.program.common.model.Maopao;
+import net.coding.program.common.ui.BaseFragment;
 import net.coding.program.maopao.MaopaoDetailActivity_;
-import net.coding.program.model.Maopao;
 import net.coding.program.subject.adapter.SubjectSearchListAdapter;
 
 import org.androidannotations.annotations.AfterViews;
@@ -27,7 +27,7 @@ import java.util.List;
 
 /**
  * Created by david on 15-7-21.
- * <p/>
+ * <p>
  * 搜索冒泡的数据
  */
 @EFragment(R.layout.subject_search_fragment)
@@ -40,11 +40,9 @@ public class SubjectSearchFragment extends BaseFragment {
     private String searchUrl = Global.HOST_API + "/search/quick?q=";
     private String searchTag = "search_tag";
 
-
     private TextView mSearchResultView;
 
     private MyImageGetter myImageGetter;
-
 
     // 当前的搜索条件
     private String mCondition = "";
@@ -82,7 +80,6 @@ public class SubjectSearchFragment extends BaseFragment {
         View headerView = LayoutInflater.from(getActivity()).inflate(R.layout.subject_search_list_header, null);
         mSearchResultView = (TextView) headerView.findViewById(R.id.maopao_search_result);
         listView.addHeaderView(headerView);
-
     }
 
     private void searchMaopao() {
@@ -99,7 +96,7 @@ public class SubjectSearchFragment extends BaseFragment {
     @Override
     public void parseJson(int code, JSONObject respanse, String tag, int pos, Object data) throws JSONException {
         if (searchTag.equals(tag)) {
-            hideProgressDialog();
+            hideDialogLoading();
             maopaoObjectList.clear();
             JSONArray jsonArray = respanse.optJSONObject("data").optJSONObject("tweets").optJSONArray("list");
             for (int i = 0; i < jsonArray.length(); ++i) {

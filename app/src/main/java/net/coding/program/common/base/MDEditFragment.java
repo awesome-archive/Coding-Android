@@ -1,26 +1,28 @@
 package net.coding.program.common.base;
 
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
 import android.provider.MediaStore;
+import android.support.v7.app.AlertDialog;
 import android.text.Editable;
+import android.text.TextUtils;
 import android.view.View;
 import android.widget.EditText;
 
 import com.loopj.android.http.RequestParams;
+import com.tbruyelle.rxpermissions2.RxPermissions;
 
 import net.coding.program.R;
-import net.coding.program.common.CustomDialog;
+import net.coding.program.common.CameraPhotoUtil;
 import net.coding.program.common.Global;
 import net.coding.program.common.PhotoOperate;
-import net.coding.program.common.network.BaseFragment;
-import net.coding.program.common.photopick.CameraPhotoUtil;
-import net.coding.program.model.AttachmentFileObject;
-import net.coding.program.project.detail.TopicEditFragment;
+import net.coding.program.common.model.AttachmentFileObject;
+import net.coding.program.common.ui.BaseFragment;
+import net.coding.program.common.util.PermissionUtil;
+import net.coding.program.project.detail.EditPreviewMarkdown;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.Click;
@@ -40,16 +42,23 @@ public class MDEditFragment extends BaseFragment {
     private final String HOST_UPLOAD_PHOTO_PUBLIC_PATH = Global.HOST_API + "%s/upload_public_image";
     //    private final String host_upload_photo = "https://coding.net/api/project/%d/file/upload";
     private final String HOST_UPLOAD_PHOTO_PRIVATE_PATH = Global.HOST_API + "%s/file/upload";
-    private final int RESULT_REQUEST_PHOTO = 1005;
+    private final int RESULT_REQUEST_PHOTO = 3005;
     @ViewById
     protected EditText edit;
     private Uri fileUri;
     private Uri fileCropUri;
     private String hostUploadPhoto = "";
 
+    private EditPreviewMarkdown projectData;
+
+    // 返回的可能是 path，也可能是 projectId
+    protected String getProjectPath() {
+        return projectData.getProjectPath();
+    }
+
     @AfterViews
     protected final void initBase1() {
-        TopicEditFragment.SaveData projectData = (TopicEditFragment.SaveData) getActivity();
+        projectData = (EditPreviewMarkdown) getActivity();
         String path = projectData.getProjectPath();
         String template;
         if (projectData.isProjectPublic()) {
@@ -67,6 +76,15 @@ public class MDEditFragment extends BaseFragment {
             }
             hostUploadPhoto = String.format(template, path);
         }
+
+        String customUploadPhoto = getCustomUploadPhoto();
+        if (!TextUtils.isEmpty(customUploadPhoto)) {
+            hostUploadPhoto = getCustomUploadPhoto();
+        }
+    }
+
+    protected String getCustomUploadPhoto() {
+        return "";
     }
 
     @Click
@@ -113,21 +131,26 @@ public class MDEditFragment extends BaseFragment {
 
     @Click
     public void mdPhoto(View v) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+        popPickDialog();
+    }
+
+    @SuppressLint("CheckResult")
+    private void popPickDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity(), R.style.MyAlertDialogStyle);
         builder.setTitle("上传图片")
-                .setItems(R.array.camera_gallery, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        if (which == 0) {
-                            camera();
-                        } else {
-                            photo();
-                        }
+                .setItems(R.array.camera_gallery, (dialog, which) -> {
+                    if (which == 0) {
+                        new RxPermissions(getActivity())
+                                .request(PermissionUtil.CAMERA_STORAGE)
+                                .subscribe(granted -> {
+                                    if (granted) {
+                                        camera();
+                                    }
+                                });
+                    } else {
+                        photo();
                     }
-                });
-        AlertDialog dialog = builder.create();
-        dialog.show();
-        CustomDialog.dialogTitleLineColor(getActivity(), dialog);
+                }).show();
     }
 
     private void camera() {
@@ -146,23 +169,31 @@ public class MDEditFragment extends BaseFragment {
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == RESULT_REQUEST_PHOTO) {
             if (resultCode == Activity.RESULT_OK) {
-                try {
-                    showProgressBar(true, "正在上传图片...");
-                    setProgressBarProgress();
-                    if (data != null) {
-                        fileUri = data.getData();
+                if (data != null) {
+                    Uri url = data.getData();
+                    if (url != null) {
+                        fileUri = url;
                     }
-
-                    File outputFile = new PhotoOperate(getActivity()).scal(fileUri);
-                    RequestParams params = new RequestParams();
-                    params.put("dir", 0);
-                    params.put("file", outputFile);
-                    postNetwork(hostUploadPhoto, params, hostUploadPhoto);
-
-                } catch (Exception e) {
-                    showProgressBar(false);
                 }
+
+                showProgressBar(true, "正在上传图片...");
+                setProgressBarProgress();
+
+                updateImage(fileUri);
             }
+        }
+    }
+
+    protected void updateImage(Uri updateFileUri) {
+        try {
+            File outputFile = new PhotoOperate(getActivity()).getFile(updateFileUri);
+            RequestParams params = new RequestParams();
+            params.put("dir", 0);
+            params.put("file", outputFile);
+            postNetwork(hostUploadPhoto, params, hostUploadPhoto);
+
+        } catch (Exception e) {
+            showProgressBar(false);
         }
     }
 
@@ -181,12 +212,17 @@ public class MDEditFragment extends BaseFragment {
                     fileUri = respanse.optString("data", "");
                 }
 
-                String mdPhotoUri = String.format("![图片](%s)\n", fileUri);
-                insertString(mdPhotoUri, "", "");
+                uploadImageSuccess(fileUri);
+
             } else {
                 showErrorMsg(code, respanse);
             }
         }
+    }
+
+    protected void uploadImageSuccess(String fileUri) {
+        String mdPhotoUri = String.format("![图片](%s)\n", fileUri);
+        insertString(mdPhotoUri, "", "");
     }
 
     private void insertString(String begin, String middle, String end) {

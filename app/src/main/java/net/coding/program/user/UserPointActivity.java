@@ -3,17 +3,22 @@ package net.coding.program.user;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ListView;
 import android.widget.TextView;
 
-import net.coding.program.BackActivity;
 import net.coding.program.R;
-import net.coding.program.WebActivity_;
+import net.coding.program.common.CodingColor;
 import net.coding.program.common.Global;
+import net.coding.program.common.GlobalCommon;
+import net.coding.program.common.model.PointObject;
+import net.coding.program.common.ui.BackActivity;
 import net.coding.program.common.widget.DataAdapter;
-import net.coding.program.model.PointObject;
+import net.coding.program.user.point.AboutPointActivity_;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.EActivity;
+import org.androidannotations.annotations.OptionsItem;
+import org.androidannotations.annotations.OptionsMenu;
 import org.androidannotations.annotations.ViewById;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -22,16 +27,16 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 
 import se.emilsjolander.stickylistheaders.StickyListHeadersAdapter;
-import se.emilsjolander.stickylistheaders.StickyListHeadersListView;
 
 @EActivity(R.layout.activity_user_point)
-//@OptionsMenu(R.menu.menu_user_point)
+@OptionsMenu(R.menu.menu_user_point)
 public class UserPointActivity extends BackActivity {
 
     private static final String TAG_HTTP_USER_POINT = "TAG_HTTP_USER_POINT";
     private static final String TAG_HTTP_ALL_POINTS = "TAG_HTTP_ALL_POINTS";
+
     @ViewById
-    StickyListHeadersListView listView;
+    ListView listView;
 
     TextView pointsAll;
 
@@ -39,30 +44,26 @@ public class UserPointActivity extends BackActivity {
 
     @AfterViews
     protected final void initUserPointActivity() {
-        View head = mInflater.inflate(R.layout.user_point_list_head, null);
+        View head = mInflater.inflate(R.layout.user_point_list_head, listView, false);
         pointsAll = (TextView) head.findViewById(R.id.pointAll);
-        head.findViewById(R.id.itemShop).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                WebActivity_.intent(UserPointActivity.this)
-                        .url(Global.HOST + "/shop")
-                        .start();
-            }
-        });
         listView.addHeaderView(head, null, false);
 
-        View footShade = mInflater.inflate(R.layout.divide_shade_up, null);
-        listView.addFooterView(footShade);
+        View footShade = mInflater.inflate(R.layout.divide_shade_up, listView, false);
+        listView.addFooterView(footShade, null, false);
 
         getNetwork(PointObject.getHttpPointsAll(), TAG_HTTP_ALL_POINTS);
         listView.setAdapter(adapter);
         getNextPageNetwork(PointObject.getHttpRecord(), TAG_HTTP_USER_POINT);
+    }
 
-        listView.setAreHeadersSticky(false);
+    @OptionsItem(R.id.actionTip)
+    void actionTip() {
+        AboutPointActivity_.intent(this).start();
     }
 
     @Override
-    public void parseJson(int code, JSONObject respanse, String tag, int pos, Object data) throws JSONException {
+    public void parseJson(int code, JSONObject respanse, String tag, int pos, Object data)
+            throws JSONException {
         if (tag.equals(TAG_HTTP_USER_POINT)) {
             if (code == 0) {
                 JSONArray json = respanse.optJSONObject("data").optJSONArray("list");
@@ -85,9 +86,13 @@ public class UserPointActivity extends BackActivity {
     }
 
     static class ViewHold {
+
         private TextView usage;
+
         private TextView pointsChange;
+
         private TextView create;
+
         private TextView pointsLeft;
 
         public ViewHold(View v) {
@@ -98,13 +103,13 @@ public class UserPointActivity extends BackActivity {
         }
 
         public void bind(PointObject data) {
-            usage.setText(data.getUsage());
+            usage.setText(GlobalCommon.changeHyperlinkColor(data.getUsage(), CodingColor.font1));
             double points_change = data.getPoints_change();
             String changeForamt;
             int textColor;
             if (data.isIncome()) {
                 changeForamt = String.format("+%.2f", points_change);
-                textColor = 0xff3bbd79;
+                textColor = CodingColor.fontGreen;
             } else {
                 changeForamt = String.format("-%.2f", points_change);
                 textColor = 0xfffb8638;
@@ -116,13 +121,14 @@ public class UserPointActivity extends BackActivity {
         }
     }
 
-    private class PointRecordAdapter extends DataAdapter<PointObject> implements StickyListHeadersAdapter {
+    private class PointRecordAdapter extends DataAdapter<PointObject>
+            implements StickyListHeadersAdapter {
+
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             ViewHold hold;
             if (convertView == null) {
-                convertView = LayoutInflater.from(parent.getContext()).inflate(R.layout.user_point_list_item,
-                        null);
+                convertView = LayoutInflater.from(parent.getContext()).inflate(R.layout.user_point_list_item, parent, false);
                 hold = new ViewHold(convertView);
                 convertView.setTag(hold);
             } else {
@@ -142,7 +148,7 @@ public class UserPointActivity extends BackActivity {
         public View getHeaderView(int i, View view, ViewGroup viewGroup) {
             LayoutInflater layoutInflater = LayoutInflater.from(viewGroup.getContext());
             if (i == 0) {
-                return layoutInflater.inflate(R.layout.divide_15_top_bottom, null);
+                return layoutInflater.inflate(R.layout.divide_middle_15, null);
             } else {
                 return layoutInflater.inflate(R.layout.divide_0, null);
             }

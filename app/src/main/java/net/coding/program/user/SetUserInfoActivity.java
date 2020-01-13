@@ -5,12 +5,12 @@ import android.widget.TextView;
 
 import com.loopj.android.http.RequestParams;
 
-import net.coding.program.BaseActivity;
 import net.coding.program.R;
 import net.coding.program.UserDetailEditActivity;
 import net.coding.program.common.Global;
-import net.coding.program.model.AccountInfo;
-import net.coding.program.model.UserObject;
+import net.coding.program.common.model.AccountInfo;
+import net.coding.program.common.model.UserObject;
+import net.coding.program.common.ui.BackActivity;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.EActivity;
@@ -21,17 +21,21 @@ import org.androidannotations.annotations.ViewById;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-@EActivity(R.layout.activity_user_edit)
+@EActivity(R.layout.activity_enterprise_name)
 @OptionsMenu(R.menu.set_password)
-public class SetUserInfoActivity extends BaseActivity {
+public class SetUserInfoActivity extends BackActivity {
 
     final String HOST_USERINFO = Global.HOST_API + "/user/updateInfo";
+
     @Extra("title")
     String title;
+
     @Extra("row")
     int row;
+
     UserObject user;
-    @ViewById
+
+    @ViewById(R.id.enterpriseNameEt)
     TextView value;
 
     @AfterViews
@@ -47,22 +51,26 @@ public class SetUserInfoActivity extends BaseActivity {
     @OptionsItem
     void submit() {
         RequestParams params = new RequestParams();
-
         setRowValue(value.getText().toString());
 
         try {
-            params.put("email", user.email);
-            params.put("lavatar", user.lavatar);
-            params.put("name", user.name);
+            params.put("tags", user.tags);
+            params.put("job", user.job);
             params.put("sex", user.sex);
-            params.put("phone", user.phone);
+//            params.put("phone", user.phone);
             params.put("birthday", user.birthday);
             params.put("location", user.location);
             params.put("company", user.company);
             params.put("slogan", user.slogan);
             params.put("introduction", user.introduction);
-            params.put("job", user.job);
-            params.put("tags", user.tags);
+            params.put("lavatar", user.lavatar);
+            params.put("global_key", user.global_key);
+            params.put("name", user.name);
+            params.put("email", user.email);
+            params.put("id", user.id);
+
+            params.put("degree", user.degree);
+            params.put("school", user.school);
 
             postNetwork(HOST_USERINFO, params, HOST_USERINFO);
         } catch (Exception e) {

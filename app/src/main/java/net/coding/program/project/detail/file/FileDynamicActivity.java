@@ -1,7 +1,6 @@
 package net.coding.program.project.detail.file;
 
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,18 +9,20 @@ import android.widget.ListView;
 
 import com.loopj.android.http.RequestParams;
 
-import net.coding.program.BackActivity;
-import net.coding.program.MyApp;
 import net.coding.program.R;
-import net.coding.program.common.ClickSmallImage;
-import net.coding.program.common.FileUtil;
+import net.coding.program.common.CodingColor;
 import net.coding.program.common.Global;
+import net.coding.program.common.GlobalCommon;
+import net.coding.program.common.GlobalData;
 import net.coding.program.common.MyImageGetter;
-import net.coding.program.model.AttachmentFileObject;
-import net.coding.program.model.BaseComment;
-import net.coding.program.model.DynamicObject;
-import net.coding.program.model.PostRequest;
-import net.coding.program.model.ProjectObject;
+import net.coding.program.common.model.AttachmentFileObject;
+import net.coding.program.common.model.BaseComment;
+import net.coding.program.common.model.DynamicObject;
+import net.coding.program.common.model.ProjectObject;
+import net.coding.program.common.model.RequestData;
+import net.coding.program.common.ui.BackActivity;
+import net.coding.program.common.util.FileUtil;
+import net.coding.program.pickphoto.ClickSmallImage;
 import net.coding.program.project.detail.merge.CommentActivity;
 import net.coding.program.project.detail.merge.CommentActivity_;
 import net.coding.program.task.add.CommentHolder;
@@ -43,7 +44,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 @EActivity(R.layout.activity_file_dynamic)
-//@OptionsMenu(R.menu.menu_file_dynamic)
 public class FileDynamicActivity extends BackActivity {
 
     public static final int RESULT_COMMENT = 1;
@@ -58,9 +58,15 @@ public class FileDynamicActivity extends BackActivity {
     @Extra
     ProjectFileParam mProjectFileParam;
 
+    private View listFooter;
+
     @AfterViews
     protected void initFileDynamicActivity() {
         adapter = new DynamicFileAdapter(this, 0, mData);
+
+        listFooter = mInflater.inflate(R.layout.task_add_footer, listView, false);
+        listView.addFooterView(listFooter);
+        listFooter.setVisibility(View.GONE);
         listView.setAdapter(adapter);
 
         getNetwork(mProjectFileParam.getHttpDynamic(), TAG_HTTP_FILE_DYNAMIC);
@@ -86,6 +92,8 @@ public class FileDynamicActivity extends BackActivity {
                         mData.add(dynamic);
                     }
                 }
+                listFooter.setVisibility(View.VISIBLE);
+
                 adapter.notifyDataSetChanged();
 
             } else {
@@ -115,7 +123,7 @@ public class FileDynamicActivity extends BackActivity {
         }
     }
 
-    static class FileDynamicParam implements CommentActivity.CommentParam, Serializable {
+    public static class FileDynamicParam extends CommentActivity.CommentParam implements Serializable {
 
         int fileId;
         String atSomeOne;
@@ -128,11 +136,11 @@ public class FileDynamicActivity extends BackActivity {
         }
 
         @Override
-        public PostRequest getSendCommentParam(String input) {
+        public RequestData getSendCommentParam(String input) {
             String url = String.format(Global.HOST_API +
                     mProjectObject.getProjectPath() +
                     "/files/%d/comment", fileId);
-            PostRequest request = new PostRequest(url, new RequestParams());
+            RequestData request = new RequestData(url, new RequestParams());
             request.setContent(input);
             return request;
         }
@@ -145,7 +153,7 @@ public class FileDynamicActivity extends BackActivity {
         @Override
         public String getAtSomeUrl() {
             return String.format(Global.HOST_API +
-                    "/user/relationships/context?context_type=project_file_comment&item_id=%d", mProjectObject.getId());
+                    "/user/relationships/context?context_type=project_file_comment&item_id=%d", fileId);
         }
 
         @Override
@@ -165,9 +173,16 @@ public class FileDynamicActivity extends BackActivity {
         //        private int mProjectid;
         private ProjectObject mProject;
 
+        public boolean openByEditor = false;
+
         public ProjectFileParam(AttachmentFileObject fileObject, ProjectObject project) {
             mFileObject = fileObject;
             mProject = project;
+        }
+
+        public ProjectFileParam openByEditor() {
+            openByEditor = true;
+            return this;
         }
 
         public String getProjectPath() {
@@ -183,7 +198,7 @@ public class FileDynamicActivity extends BackActivity {
         }
 
         public String getHttpDynamic() {
-            String url = Global.HOST_API + mProject.getProjectPath() + "/file/%s/activities?last_id=9999999";
+            String url = Global.HOST_API + mProject.getProjectPath() + "/file/%s/activities?last_id=999999999";
             return String.format(url, mFileObject.file_id);
         }
 
@@ -192,13 +207,13 @@ public class FileDynamicActivity extends BackActivity {
             return String.format(url, mFileObject.file_id, commmentId);
         }
 
-        public PostRequest getHttpEditFile(String content) {
+        public RequestData getHttpEditFile(String content) {
             final String template = Global.HOST_API + getProjectPath() + "/files/%s/edit";
             String url = String.format(template, mFileObject.file_id);
             RequestParams params = new RequestParams();
             params.put("name", mFileObject.getName());
             params.put("content", content);
-            return new PostRequest(url, params);
+            return new RequestData(url, params);
         }
 
         public String getHtttpFileView() {
@@ -219,6 +234,10 @@ public class FileDynamicActivity extends BackActivity {
         }
 
         public File getLocalFile(String path) {
+            if (mFileObject == null || mProject == null) {
+                return null;
+            }
+
             return FileUtil.getDestinationInExternalPublicDir(path,
                     mFileObject.getSaveName(mProject.getId()));
         }
@@ -252,13 +271,9 @@ public class FileDynamicActivity extends BackActivity {
                 }
 
                 final int itemIdFinal = itemId;
-                if (globalKey.equals(MyApp.sUserObject.global_key)) {
-                    showDialog("评论", "删除评论？", new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            deleteNetwork(mProjectFileParam.getHttpDeleteComment(itemIdFinal), TAG_HTTP_COMMENT_DELETE, tagData);
-                        }
-                    });
+                if (globalKey.equals(GlobalData.sUserObject.global_key)) {
+                    showDialog("评论", "删除评论？", (dialog, which) ->
+                            deleteNetwork(mProjectFileParam.getHttpDeleteComment(itemIdFinal), TAG_HTTP_COMMENT_DELETE, tagData));
                 } else {
                     FileDynamicParam param = new FileDynamicParam(mProjectFileParam.getProject(),
                             Integer.valueOf(mProjectFileParam.mFileObject.file_id), ownerName);
@@ -298,7 +313,7 @@ public class FileDynamicActivity extends BackActivity {
                 CommentHolder holder;
                 if (convertView == null) {
                     convertView = mInflater.inflate(R.layout.activity_task_comment_much_image_task, parent, false);
-                    holder = new CommentHolder(convertView, mOnClickComment, myImageGetter, getImageLoad(), mOnClickUser, onClickImage);
+                    holder = new CommentHolder(convertView, mOnClickComment, myImageGetter, getImageLoad(), GlobalCommon.mOnClickUser, onClickImage);
                     convertView.setTag(R.id.layout, holder);
                 } else {
                     holder = (CommentHolder) convertView.getTag(R.id.layout);
@@ -335,11 +350,19 @@ public class FileDynamicActivity extends BackActivity {
                         resId = R.drawable.project_file_dynamic_edit;
                         break;
                     case "upload_file":
-                        content = "上传了新版本";
+                        if (data.version.isEmpty()) {
+                            content = "上传了新版本";
+                        } else {
+                            content = "上传了新版本 V" + data.version;
+                        }
                         resId = R.drawable.project_file_dynamic_upload;
                         break;
                     case "delete_history":
-                        content = "删除了版本";
+                        if (data.version.isEmpty()) {
+                            content = "删除了版本";
+                        } else {
+                            content = "删除了版本 V" + data.version;
+                        }
                         resId = R.drawable.project_file_dynamic_delete;
                         break;
                     case "move_file":
@@ -353,8 +376,8 @@ public class FileDynamicActivity extends BackActivity {
                         break;
                 }
 
-                content = data.user.name + " " + content;
-                holder.mContent.setText(content);
+                String contentString = String.format("  %s - %s", content, Global.dayToNow(data.created_at, true));
+                holder.mContent.setText(Global.createColorHtml("", data.user.name, contentString, CodingColor.font1));
                 holder.mIcon.setImageResource(resId);
 
                 holder.updateLine(position, count);

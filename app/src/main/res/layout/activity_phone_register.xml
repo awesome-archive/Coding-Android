@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/stand_bg"
+    tools:context="net.coding.program.login.PhoneRegisterActivity">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/layoutRoot"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:orientation="horizontal"
+                tools:visibility="visible">
+
+                <ImageView
+                    android:id="@+id/backImage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginLeft="15dp"
+                    android:src="@drawable/ic_menu_back" />
+
+            </FrameLayout>
+
+
+            <LinearLayout
+                android:id="@+id/firstLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                tools:visibility="visible">
+
+                <TextView
+                    style="@style/NewTitle"
+                    android:layout_marginLeft="20dp"
+                    android:text="注册" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="20dp"
+                    android:layout_marginRight="20dp"
+                    android:orientation="vertical">
+
+                    <net.coding.program.common.widget.LoginAutoCompleteEdit
+                        android:id="@+id/globalKeyEdit"
+                        style="@style/EditLogin"
+                        android:digits="@string/input_format_global_key"
+                        android:hint="用户名(个性后缀)"
+                        app:darkness="true" />
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <net.coding.program.common.LoginEditText
+                            android:id="@+id/phoneEdit"
+                            style="@style/EditLogin"
+                            android:inputType="phone"
+                            android:paddingLeft="55dp"
+                            app:hint="手机号"
+                            app:loginInput="number"
+                            app:topLine="false" />
+
+                        <TextView
+                            android:id="@+id/countryCode"
+                            style="@style/PhoneCountry"
+                            android:text="+86" />
+
+                    </FrameLayout>
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <net.coding.program.common.LoginEditText
+                            android:id="@+id/phoneCodeEdit"
+                            style="@style/EditLogin"
+                            android:layout_width="match_parent"
+                            android:layout_weight="1"
+                            android:hint="手机验证码"
+                            android:inputType="number"
+                            android:visibility="visible" />
+
+                        <net.coding.program.common.widget.ValidePhoneView
+                            android:id="@+id/sendCode"
+                            style="@style/ValidePhoneView"
+                            android:layout_gravity="right|bottom"
+                            android:layout_marginBottom="10dp"
+                            android:layout_marginRight="0dp"
+                            android:background="@null"
+                            android:textColor="@color/font_1"
+                            android:textSize="15sp" />
+
+                    </FrameLayout>
+
+                </LinearLayout>
+
+                <com.flyco.roundview.RoundTextView
+                    android:id="@+id/firstStep"
+                    style="@style/sendRoundButton"
+                    android:layout_marginLeft="20dp"
+                    android:layout_marginRight="20dp"
+                    android:text="下一步"
+                    app:rv_backgroundColor="@color/font_green" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/secondLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingLeft="20dp"
+                android:paddingRight="20dp"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minHeight="42dp"
+                    android:text="设置密码"
+                    android:textColor="#FF212B3A"
+                    android:textSize="30sp" />
+
+
+                <net.coding.program.common.LoginEditText
+                    android:id="@+id/passwordEdit"
+                    style="@style/EditLogin"
+                    android:hint="设置密码"
+                    android:inputType="textPassword" />
+
+                <net.coding.program.common.LoginEditText
+                    android:id="@+id/passwordEditAgain"
+                    style="@style/EditLogin"
+                    android:hint="重复密码"
+                    android:inputType="textPassword" />
+
+                <com.flyco.roundview.RoundTextView
+                    android:id="@+id/loginButton"
+                    style="@style/sendRoundButton"
+                    android:layout_marginTop="25dp"
+                    android:enabled="false"
+                    android:text="注册"
+                    app:rv_backgroundColor="@color/font_green" />
+
+                <TextView
+                    android:id="@+id/textClause"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="@dimen/padding_15"
+                    android:layout_marginRight="@dimen/padding_15"
+                    android:layout_marginTop="25dp"
+                    android:gravity="center_horizontal"
+                    android:textColor="@color/font_2"
+                    android:textSize="14sp"
+                    tools:text="码市用户" />
+
+            </LinearLayout>
+
+            <android.support.v4.widget.Space
+                android:layout_width="wrap_content"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/login"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="30dp"
+                android:text="已有 Coding 账号？"
+                android:textColor="#FF212B3A"
+                android:textSize="15sp" />
+
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

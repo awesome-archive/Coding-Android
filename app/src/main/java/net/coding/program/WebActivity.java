@@ -1,10 +1,15 @@
 package net.coding.program;
 
-import android.content.Context;
 import android.content.Intent;
+import android.graphics.Rect;
 import android.net.Uri;
+import android.support.v7.app.ActionBar;
 import android.support.v7.widget.Toolbar;
+import android.text.TextUtils;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.Menu;
+import android.view.MenuInflater;
 import android.view.View;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
@@ -17,46 +22,50 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import net.coding.program.common.Global;
-import net.coding.program.common.htmltext.URLSpanNoUnderline;
 import net.coding.program.common.network.MyAsyncHttpClient;
-import net.coding.program.common.umeng.UmengActivity;
+import net.coding.program.common.ui.BaseActivity;
+import net.coding.program.maopao.share.CustomShareBoard;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.EActivity;
 import org.androidannotations.annotations.Extra;
 import org.androidannotations.annotations.OptionsItem;
-import org.androidannotations.annotations.OptionsMenu;
 import org.androidannotations.annotations.ViewById;
 
 @EActivity(R.layout.activity_web)
-@OptionsMenu(R.menu.menu_web)
-public class WebActivity extends UmengActivity {
+public class WebActivity extends BaseActivity {
 
     @Extra
-    String url = Global.HOST;
+    protected String url = Global.HOST;
+
+    @Extra
+    protected boolean share = false; // 可以弹出显示分享 Dialog
+
+    @Extra
+    protected String title = "";
 
     @ViewById
-    WebView webView;
+    protected WebView webView;
 
     @ViewById
-    ProgressBar progressBar;
+    protected ProgressBar progressBar;
+    protected TextView actionbarTitle;
     String loading = "";
-    private TextView actionbarTitle;
 
     @AfterViews
     protected final void initWebActivity() {
         Log.d("", "WebActivity " + url);
 
-        Toolbar toolbar = (Toolbar) findViewById(R.id.custom_action_bar);
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        actionbarTitle = (TextView) findViewById(R.id.actionbar_title);
-        findViewById(R.id.actionbar_close).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                finish();
-            }
-        });
+        actionbarTitle = (TextView) findViewById(R.id.toolbarTitle);
+        ActionBar supportActionBar = getSupportActionBar();
+        if (supportActionBar != null) {
+            supportActionBar.setDisplayHomeAsUpEnabled(true);
+        }
+
+        actionbarTitle.setText(title);
 
         loading = actionbarTitle.getText().toString();
 
@@ -69,7 +78,7 @@ public class WebActivity extends UmengActivity {
                                            if (newProgress == 100) {
                                                // 没有title显示网址
                                                String currentTitle = actionbarTitle.getText().toString();
-                                               if (loading.equals(currentTitle)) {
+                                               if (loading.equals(currentTitle) && TextUtils.isEmpty(title)) {
                                                    actionbarTitle.setText(url);
                                                }
 
@@ -98,7 +107,9 @@ public class WebActivity extends UmengActivity {
 
                                        @Override
                                        public void onReceivedTitle(WebView view, String title) {
-                                           actionbarTitle.setText(title);
+                                           if (TextUtils.isEmpty(title)) {
+                                               actionbarTitle.setText(title);
+                                           }
                                        }
                                    }
         );
@@ -111,6 +122,18 @@ public class WebActivity extends UmengActivity {
         String useAgent = MyAsyncHttpClient.getMapHeaders().get("User-Agent");
         webView.getSettings().setUserAgentString(useAgent);
         webView.loadUrl(url, MyAsyncHttpClient.getMapHeaders());
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater menuInflater = getMenuInflater();
+        menuInflater.inflate(net.coding.program.R.menu.menu_web, menu);
+
+        if (!share) {
+            menu.findItem(R.id.action_share).setVisible(false);
+        }
+
+        return super.onCreateOptionsMenu(menu);
     }
 
     @Override
@@ -127,13 +150,15 @@ public class WebActivity extends UmengActivity {
         webView.destroy();
         webView = null;
 
+        CustomShareBoard.onDestory(this);
+
         super.onDestroy();
     }
 
     @OptionsItem
     protected final void action_browser() {
         try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(webView.getUrl()));
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
             startActivity(intent);
         } catch (Exception e) {
             Toast.makeText(WebActivity.this, "用浏览器打开失败", Toast.LENGTH_LONG).show();
@@ -142,23 +167,54 @@ public class WebActivity extends UmengActivity {
 
     @OptionsItem
     protected final void action_copy() {
-        String urlString = webView.getUrl();
+        String urlString = url;
+        if (urlString == null) {
+            Toast.makeText(WebActivity.this, "复制链接失败", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         Global.copy(WebActivity.this, urlString);
         Toast.makeText(WebActivity.this, urlString + " 已复制", Toast.LENGTH_SHORT).show();
     }
 
-    public static class CustomWebViewClient extends WebViewClient {
-
-        Context mContext;
-
-        public CustomWebViewClient(Context context) {
-            mContext = context;
+    @OptionsItem
+    protected final void action_share() {
+        String urlString = url;
+        if (urlString == null) {
+            Toast.makeText(WebActivity.this, "获取链接失败", Toast.LENGTH_SHORT).show();
+            return;
         }
 
-        @Override
-        public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            return URLSpanNoUnderline.openActivityByUri(mContext, url, false, false);
+        String title = actionbarTitle.getText().toString();
+        if (title.isEmpty()) {
+            Toast.makeText(WebActivity.this, "获取标题失败", Toast.LENGTH_SHORT).show();
+            return;
         }
+
+        action_share_third();
     }
 
+    @OptionsItem(android.R.id.home)
+    protected final void actionBack() {
+        finish();
+    }
+
+    void action_share_third() {
+        String title = actionbarTitle.getText().toString();
+        CustomShareBoard.ShareData shareData = new CustomShareBoard.ShareData("Coding", title, url);
+        CustomShareBoard shareBoard = new CustomShareBoard(this, shareData);
+        Rect rect = new Rect();
+        View decorView = getWindow().getDecorView();
+        decorView.getWindowVisibleDisplayFrame(rect);
+        int winHeight = getWindow().getDecorView().getHeight();
+        // 在 5.0 的android手机上，如果是 noactionbar，显示会有问题
+        shareBoard.showAtLocation(decorView, Gravity.BOTTOM, 0, winHeight - rect.bottom);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        CustomShareBoard.onActivityResult(requestCode, resultCode, data, this);
+    }
 }
+

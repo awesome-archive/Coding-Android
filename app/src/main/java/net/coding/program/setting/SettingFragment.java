@@ -1,49 +1,104 @@
 package net.coding.program.setting;
 
-import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.os.Environment;
+import android.support.v4.app.FragmentActivity;
+import android.support.v7.app.AlertDialog;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.TextView;
 
-import com.tencent.android.tpush.XGPushManager;
-
-import net.coding.program.BaseActivity;
-import net.coding.program.MainActivity;
-import net.coding.program.MyApp;
 import net.coding.program.R;
-import net.coding.program.common.FileUtil;
-import net.coding.program.common.guide.GuideActivity;
-import net.coding.program.common.network.BaseFragment;
-import net.coding.program.model.AccountInfo;
+import net.coding.program.common.GlobalData;
+import net.coding.program.common.event.EventMessage;
+import net.coding.program.common.model.AccountInfo;
+import net.coding.program.common.ui.BaseFragment;
+import net.coding.program.common.umeng.UmengEvent;
+import net.coding.program.common.util.FileUtil;
+import net.coding.program.compatible.CodingCompat;
+import net.coding.program.project.detail.file.FileSaveHelp;
+import net.coding.program.thirdplatform.ThirdPlatformLogin;
 
 import org.androidannotations.annotations.AfterViews;
+import org.androidannotations.annotations.Background;
 import org.androidannotations.annotations.Click;
 import org.androidannotations.annotations.EFragment;
-import org.androidannotations.annotations.OnActivityResult;
+import org.androidannotations.annotations.UiThread;
 import org.androidannotations.annotations.ViewById;
+import org.greenrobot.eventbus.EventBus;
 
 import java.io.File;
 import java.util.regex.Pattern;
 
+
 @EFragment(R.layout.fragment_setting)
 public class SettingFragment extends BaseFragment {
 
-    private static final int RESULT_ABOUT_ACTIVITY = 1;
     @ViewById
-    CheckBox allNotify;
+    TextView cacheSize;
 
     @AfterViews
     void init() {
-        boolean mLastNotifySetting = AccountInfo.getNeedPush(getActivity());
-        allNotify.setChecked(mLastNotifySetting);
         setHasOptionsMenu(true);
+        updateCacheSize();
+    }
+
+    @Background
+    void updateCacheSize() {
+        File[] cacheDir = getAllCacheDir();
+
+        long size = 0;
+        for (File dir : cacheDir) {
+            size += getFileSize(dir);
+        }
+        String sizeString = String.format("%.2f MB", (double) size / 1024 / 1024);
+
+        dispayCacheSize(sizeString);
+    }
+
+    File[] getAllCacheDir() {
+        return new File[]{
+                getActivity().getCacheDir(),
+                getActivity().getExternalCacheDir()
+        };
+    }
+
+    long getFileSize(File file) {
+        if (file == null) {
+            return 0;
+        }
+
+        if (file.isDirectory()) {
+            long size = 0;
+            for (File item : file.listFiles()) {
+                size += getFileSize(item);
+            }
+            return size;
+        } else {
+            return file.length();
+        }
+    }
+
+    void deleteFiles(File file) {
+        if (file == null) {
+            return;
+        }
+
+        if (file.isDirectory()) {
+            for (File item : file.listFiles()) {
+                deleteFiles(item);
+            }
+            file.delete();
+        } else if (file.isFile()) {
+            file.delete();
+        }
+    }
+
+    @UiThread
+    void dispayCacheSize(String size) {
+        cacheSize.setText(size);
     }
 
     @Click
@@ -52,91 +107,70 @@ public class SettingFragment extends BaseFragment {
     }
 
     @Click
-    void pushSetting() {
-//        NotifySetting_.intent(this).start();
-        allNotify.performClick();
-    }
-
-    @Click
-    void allNotify() {
-        AccountInfo.setNeedPush(getActivity(), allNotify.isChecked());
-        Intent intent = new Intent(MainActivity.BroadcastPushStyle);
-        getActivity().sendBroadcast(intent);
-    }
-
-    @Click
     void downloadPathSetting() {
         final SharedPreferences share = getActivity().getSharedPreferences(FileUtil.DOWNLOAD_SETTING, Context.MODE_PRIVATE);
-        String path;
-        if (share.contains(FileUtil.DOWNLOAD_PATH)) {
-            path = share.getString(FileUtil.DOWNLOAD_PATH, Environment.DIRECTORY_DOWNLOADS + File.separator + FileUtil.DOWNLOAD_FOLDER);
-        } else {
-            path = Environment.DIRECTORY_DOWNLOADS + File.separator + FileUtil.DOWNLOAD_FOLDER;
-        }
+        String path = new FileSaveHelp(getActivity()).getFileDownloadPath();
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
         LayoutInflater li = LayoutInflater.from(getActivity());
         View v1 = li.inflate(R.layout.dialog_input, null);
         final EditText input = (EditText) v1.findViewById(R.id.value);
         final String oldPath = path;
         input.setText(oldPath);
-        builder.setTitle("下载路径设置")
-                .setView(v1).setPositiveButton("确定", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                String newPath = input.getText().toString();
-                final String namePatternStr = "[,`~!@#$%^&*:;()''\"\"><|.\\ =]";// if(folder.name.match(/[,`~!@#$%^&*:;()''""><|.\ /=]/g))
-                Pattern namePattern = Pattern.compile(namePatternStr);
-                if (newPath.equals("")) {
-                    showButtomToast("路径不能为空");
-                } else if (namePattern.matcher(newPath).find()) {
-                    showButtomToast("路径：" + newPath + " 不能采用");
-                } else if (!oldPath.equals(newPath)) {
-                    SharedPreferences.Editor editor = share.edit();
-                    editor.putString(FileUtil.DOWNLOAD_PATH, newPath);
-                    editor.commit();
-                }
-            }
-        }).setNegativeButton("取消", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-            }
-        });
-
-        AlertDialog dialog = builder.show();
-        ((BaseActivity) getActivity()).dialogTitleLineColor(dialog);
+        new AlertDialog.Builder(getActivity(), R.style.MyAlertDialogStyle)
+                .setTitle("下载路径设置")
+                .setView(v1)
+                .setPositiveButton("确定", (dialog, which) -> {
+                    String newPath = input.getText().toString();
+                    final String namePatternStr = "[,`~!@#$%^&*:;()''\"\"><|.\\ =]";// if(folder.name.match(/[,`~!@#$%^&*:;()''""><|.\ /=]/g))
+                    Pattern namePattern = Pattern.compile(namePatternStr);
+                    if (newPath.equals("")) {
+                        showButtomToast("路径不能为空");
+                    } else if (namePattern.matcher(newPath).find()) {
+                        showButtomToast("路径：" + newPath + " 不能采用");
+                    } else if (!oldPath.equals(newPath)) {
+                        SharedPreferences.Editor editor = share.edit();
+                        editor.putString(FileUtil.DOWNLOAD_PATH, newPath);
+                        editor.commit();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     @Click
-    void feedback() {
-        FeedbackActivity_.intent(getActivity()).start();
-    }
+    void clearCache() {
+        new AlertDialog.Builder(getActivity(), R.style.MyAlertDialogStyle)
+                .setMessage(R.string.clear_cache_message)
+                .setPositiveButton("确定", ((dialog, which) -> {
+                    File[] cacheDir = getAllCacheDir();
+                    for (File item : cacheDir) {
+                        deleteFiles(item);
+                    }
+                    showMiddleToast("清除缓存成功");
 
-
-    @Click
-    void aboutCoding() {
-        AboutActivity_.intent(SettingFragment.this).startForResult(RESULT_ABOUT_ACTIVITY);
-    }
-
-    @OnActivityResult(RESULT_ABOUT_ACTIVITY)
-    void resultAboutActivity(int resultCode) {
-        if (resultCode == Activity.RESULT_OK) {
-            AccountInfo.loginOut(getActivity());
-            getActivity().finish();
-            System.exit(0);
-        }
+                    updateCacheSize();
+                }))
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     @Click
     void loginOut() {
-        showDialog(MyApp.sUserObject.global_key, "退出当前账号?", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                XGPushManager.registerPush(getActivity(), "*");
-                AccountInfo.loginOut(getActivity());
-                startActivity(new Intent(getActivity(), GuideActivity.class));
-                getActivity().finish();
+        showDialog(GlobalData.sUserObject.global_key, "退出当前账号?", (dialog, which) -> {
+            umengEvent(UmengEvent.E_USER_CENTER, "退登_确定退登");
+            FragmentActivity activity = getActivity();
+
+            CodingCompat.instance().loginOut(activity, GlobalData.sUserObject.global_key);
+
+            AccountInfo.loginOut(activity);
+            ThirdPlatformLogin.loginOut(activity);
+            if (GlobalData.isEnterprise()) {
+                startActivity(new Intent(activity, CodingCompat.instance().getGuideActivity()));
+            } else {
+                startActivity(new Intent(activity, CodingCompat.instance().getLoginActivity()));
             }
+            EventBus.getDefault().post(new EventMessage(EventMessage.Type.loginOut));
+            activity.finish();
         });
     }
 }

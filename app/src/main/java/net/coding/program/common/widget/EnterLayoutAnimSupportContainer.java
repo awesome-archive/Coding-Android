@@ -11,19 +11,29 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewTreeObserver;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.LinearLayout;
 
 import net.coding.program.R;
-import net.coding.program.common.Global;
 
 /**
  * Created by Carlos2015 on 2015/8/19.
  * 输入控件(common_enter_emoji)支持切换动画的父容器,必须保证它只有两个子控件,并且输入控件是第二个
  */
 public class EnterLayoutAnimSupportContainer extends FrameLayout {
+    /**
+     * mEnter关闭时的绝对y坐标
+     */
+    public int closeY;
+    /**
+     * mEnter打开时的绝对y坐标
+     */
+    public int openY;
+    /**
+     * mEnter关闭且输入法弹出将mEnter顶上去时的绝对y坐标
+     */
+    public int softkeyboardOpenY;
+    public int orignalHeight;
     private String TAG = "EnterLayoutAnimSupportContainer";
     private ViewGroup mContent;
     private FrameLayout mEnter;
@@ -39,29 +49,18 @@ public class EnterLayoutAnimSupportContainer extends FrameLayout {
     private int minEnterHeight;
     private int minVoiceLayoutTop, minEmojikeyboardLayoutTop;
     private int minEnterLayoutBottomMargin;
-    private ViewGroup voiceLayout, emojiKeyboardLayout,mInputBox;
-    private FrameLayout.LayoutParams lp_voice, lp_emoji;
+    private ViewGroup voiceLayout, mInputBox;
+    private LayoutParams lp_voice, lp_emoji;
     private OnEnterLayoutBottomMarginChanagedCallBack mOnEnterLayoutBottomMarginChanagedCallBack;
     private Editable tempData;
     private Handler mHandler;
     private boolean isEnterHeightChanaged;
     private int inputboxHeight;
     private FrameLayout mPanelLayout;
-    /**
-     * mEnter关闭时的绝对y坐标
-     */
-    public int closeY;
-    /**
-     * mEnter打开时的绝对y坐标
-     */
-    public int openY;
-    /**
-     * mEnter关闭且输入法弹出将mEnter顶上去时的绝对y坐标
-     */
-    public int softkeyboardOpenY;
-    public int orignalHeight;
-
     private int mY;
+    private int mOldHeight = -1;
+    private SoftKeyBordState mSoftKeyBordState = SoftKeyBordState.Hide;
+    private boolean isCloseInputMethodBySelf = true;
 
     public EnterLayoutAnimSupportContainer(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -76,13 +75,9 @@ public class EnterLayoutAnimSupportContainer extends FrameLayout {
         requestLayout();
     }
 
-    private int mOldHeight = -1;
-
-    private SoftKeyBordState mSoftKeyBordState = SoftKeyBordState.Hide;
-
-   public SoftKeyBordState getSoftKeyBordState(){
-       return mSoftKeyBordState;
-   }
+    public SoftKeyBordState getSoftKeyBordState() {
+        return mSoftKeyBordState;
+    }
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
@@ -111,7 +106,7 @@ public class EnterLayoutAnimSupportContainer extends FrameLayout {
                 break;
             }
 
-            if(mEnter != null && mPanelLayout == null){
+            if (mEnter != null && mPanelLayout == null) {
                 mPanelLayout = (FrameLayout) mEnter.getChildAt(1);
             }
 
@@ -130,11 +125,11 @@ public class EnterLayoutAnimSupportContainer extends FrameLayout {
             } else {
                 mSoftKeyBordState = SoftKeyBordState.Closing;
                 //键盘收回 (offset < 0，高度变大)
-                if(!isCloseInputMethodBySelf){
+                if (!isCloseInputMethodBySelf) {
                     isCloseInputMethodBySelf = true;
                     mPanelLayout.setVisibility(View.VISIBLE);
                     mEnterLayoutBottomMargin = 0;
-                }else{
+                } else {
                     mPanelLayout.setVisibility(View.GONE);
                     mEnterLayoutBottomMargin = minEnterLayoutBottomMargin;
                 }
@@ -147,19 +142,13 @@ public class EnterLayoutAnimSupportContainer extends FrameLayout {
 
     }
 
-    public enum SoftKeyBordState{
-        Opening,Closing,Hide
-    }
-
-    private boolean isCloseInputMethodBySelf = true;
-    public void setCloseInputMethodBySelf(boolean closeBySelf){
+    public void setCloseInputMethodBySelf(boolean closeBySelf) {
         isCloseInputMethodBySelf = closeBySelf;
     }
 
-    public boolean isPanelLauoutOpen(){
+    public boolean isPanelLauoutOpen() {
         return mEnterLayoutBottomMargin == 0;
     }
-
 
     /**
      * 判断输入法弹出时会不会拉伸布局
@@ -174,14 +163,17 @@ public class EnterLayoutAnimSupportContainer extends FrameLayout {
         this.mOnEnterLayoutBottomMarginChanagedCallBack = callBack;
     }
 
-    public FrameLayout getPanelLayout(){
+    public FrameLayout getPanelLayout() {
         return mPanelLayout;
     }
-
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right,
                             int bottom) {
+        if (1 == 1) {
+            super.onLayout(changed, left, top, right, bottom);
+            return;
+        }
 
         if (isFirstLayout && getVisibility() != View.GONE) {
             mContent = (ViewGroup) getChildAt(0);
@@ -195,9 +187,8 @@ public class EnterLayoutAnimSupportContainer extends FrameLayout {
             comment = (EditText) mEnter.findViewById(R.id.comment);
             mInputBox = (ViewGroup) mEnter.findViewById(R.id.mInputBox);
             voiceLayout = (ViewGroup) mEnter.findViewById(R.id.voiceLayout);
-            emojiKeyboardLayout = (ViewGroup) mEnter.findViewById(R.id.emojiKeyboardLayout);
             lp_voice = (LayoutParams) voiceLayout.getLayoutParams();
-            lp_emoji = (LayoutParams) emojiKeyboardLayout.getLayoutParams();
+            lp_emoji = (LayoutParams) mEnter.findViewById(R.id.emojiKeyboardLayout).getLayoutParams();
             isFirstLayout = false;
             orignalHeight = bottom - top;
             inputboxHeight = mInputBox.getMeasuredHeight();
@@ -212,27 +203,27 @@ public class EnterLayoutAnimSupportContainer extends FrameLayout {
             //第一个延迟消息得到单行输入框的高度(最小高度),第二个延迟消息将暂时保存的文本放入输入框，此时整个输入控件的
             //显示就会正常
 
-            if(isAdjustResize && mEnter.getVisibility() != View.GONE && comment.getLineCount()>1){
+            if (isAdjustResize && mEnter.getVisibility() != View.GONE && comment.getLineCount() > 1) {
                 tempData = comment.getText();
                 comment.setText("");
                 final int status = mEnter.getVisibility();
                 mEnter.setVisibility(View.GONE);
-                mHandler = new Handler(){
+                mHandler = new Handler() {
                     @Override
                     public void handleMessage(Message msg) {
-                        switch (msg.what){
+                        switch (msg.what) {
                             case 1:
-                                if(comment.getLineCount()<=1){
-                                    if(!TextUtils.isEmpty(comment.getText())){
+                                if (comment.getLineCount() <= 1) {
+                                    if (!TextUtils.isEmpty(comment.getText())) {
                                         tempData = comment.getText();
                                     }
                                     mEnter.setVisibility(status);
-                                    mHandler.sendEmptyMessageDelayed(2,100);
-                                }else{
+                                    mHandler.sendEmptyMessageDelayed(2, 100);
+                                } else {
                                     tempData = comment.getText();
                                     comment.setText("");
                                     mEnter.setVisibility(View.GONE);
-                                    mHandler.sendEmptyMessageDelayed(1,100);
+                                    mHandler.sendEmptyMessageDelayed(1, 100);
                                 }
                                 break;
                             case 2:
@@ -243,8 +234,8 @@ public class EnterLayoutAnimSupportContainer extends FrameLayout {
                         }
                     }
                 };
-                mHandler.sendEmptyMessageDelayed(1,200);
-            }else{
+                mHandler.sendEmptyMessageDelayed(1, 200);
+            } else {
                 if (mEnter.getVisibility() != View.GONE) {
                     //comment最小高度，当行数发生变化时，它的高度会随之改变
 
@@ -266,7 +257,7 @@ public class EnterLayoutAnimSupportContainer extends FrameLayout {
             minEmojikeyboardLayoutTop = lp_emoji.topMargin;
             inputboxHeight = mInputBox.getMeasuredHeight();
         }
-        if(!isEnterHeightChanaged){
+        if (!isEnterHeightChanaged) {
             if (mEnter.getVisibility() != View.GONE) {
                 int commentHeight = comment.getMeasuredHeight();
                 int dH = commentHeight - minCommentHeight;
@@ -328,10 +319,15 @@ public class EnterLayoutAnimSupportContainer extends FrameLayout {
                 mOnEnterLayoutBottomMarginChanagedCallBack.onChanage(mEnterLayoutBottomMargin, lastEnterLayoutBottomMargin);
             }
             lastEnterLayoutBottomMargin = mEnterLayoutBottomMargin;
-        }else{
-            super.onLayout(changed,left,top,right,bottom);
+        } else {
+            super.onLayout(changed, left, top, right, bottom);
         }
 
+    }
+
+
+    public enum SoftKeyBordState {
+        Opening, Closing, Hide
     }
 
     public interface OnEnterLayoutBottomMarginChanagedCallBack {

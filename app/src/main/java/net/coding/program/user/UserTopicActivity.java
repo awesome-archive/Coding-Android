@@ -2,18 +2,17 @@ package net.coding.program.user;
 
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentStatePagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.ActionBar;
 import android.util.TypedValue;
 
-import net.coding.program.BackActivity;
-import net.coding.program.BaseActivity;
 import net.coding.program.R;
-import net.coding.program.common.SaveFragmentPagerAdapter;
-import net.coding.program.model.UserObject;
+import net.coding.program.common.model.UserObject;
+import net.coding.program.common.ui.BackActivity;
 import net.coding.program.subject.SubjectListFragment;
-import net.coding.program.third.WechatTab;
 import net.coding.program.subject.SubjectListFragment_;
+import net.coding.program.third.WechatTab;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.EActivity;
@@ -52,7 +51,7 @@ public class UserTopicActivity extends BackActivity {
         tabs.setViewPager(pager);
     }
 
-    class MyPagerAdapter extends SaveFragmentPagerAdapter {
+    class MyPagerAdapter extends FragmentStatePagerAdapter {
 
         public MyPagerAdapter(FragmentManager fm) {
             super(fm);
@@ -75,13 +74,10 @@ public class UserTopicActivity extends BackActivity {
                     SubjectListFragment.Type.join
             };
 
-            Fragment fragment = SubjectListFragment_.builder()
+            return SubjectListFragment_.builder()
                     .userKey(mUserObject.global_key)
                     .mType(types[position])
                     .build();
-
-            saveFragment(fragment);
-            return fragment;
         }
     }
 }

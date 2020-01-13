@@ -2,8 +2,11 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/divide"
     android:orientation="vertical"
     tools:context="net.coding.program.project.detail.topic.TopicListDetailActivity">
+
+    <include layout="@layout/common_actionbar" />
 
     <android.support.v4.widget.SwipeRefreshLayout
         android:id="@+id/swipeRefreshLayout"
@@ -15,10 +18,12 @@
             android:id="@id/listView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:background="@color/divide"
             android:divider="@null"
             android:dividerHeight="0dp" />
 
     </android.support.v4.widget.SwipeRefreshLayout>
 
     <include layout="@layout/common_enter_image" />
+
 </LinearLayout>

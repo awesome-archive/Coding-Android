@@ -1,12 +1,13 @@
 package net.coding.program.project.init.create;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.MediaStore;
+import android.support.v7.app.AlertDialog;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.util.Log;
@@ -15,33 +16,44 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.TextView;
 
 import com.loopj.android.http.RequestParams;
 import com.nostra13.universalimageloader.core.listener.SimpleImageLoadingListener;
+import com.tbruyelle.rxpermissions2.RxPermissions;
 
 import net.coding.program.R;
-import net.coding.program.common.CustomDialog;
+import net.coding.program.common.CameraPhotoUtil;
 import net.coding.program.common.Global;
 import net.coding.program.common.ImageLoadTool;
-import net.coding.program.common.enter.SimpleTextWatcher;
-import net.coding.program.common.network.BaseFragment;
-import net.coding.program.common.photopick.CameraPhotoUtil;
+import net.coding.program.common.event.EventRefresh;
+import net.coding.program.common.ui.BaseFragment;
+import net.coding.program.common.umeng.UmengEvent;
+import net.coding.program.common.util.FileUtil;
+import net.coding.program.common.util.InputCheck;
+import net.coding.program.common.util.PermissionUtil;
+import net.coding.program.common.widget.FileProviderHelp;
+import net.coding.program.common.widget.input.SimpleTextWatcher;
+import net.coding.program.compatible.UriCompat;
+import net.coding.program.param.ProjectJumpParam;
 import net.coding.program.project.ProjectHomeActivity_;
-import net.coding.program.project.detail.ProjectActivity;
-import net.coding.program.project.init.InitProUtils;
 
 import org.androidannotations.annotations.AfterViews;
+import org.androidannotations.annotations.CheckedChange;
 import org.androidannotations.annotations.Click;
 import org.androidannotations.annotations.EFragment;
 import org.androidannotations.annotations.OptionsMenu;
 import org.androidannotations.annotations.ViewById;
+import org.greenrobot.eventbus.EventBus;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+
+import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
+import static android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
 
 /**
  * Created by jack wang on 2015/3/31.
@@ -52,24 +64,21 @@ import java.io.File;
 public class ProjectCreateFragment extends BaseFragment {
 
     public static final int RESULT_REQUEST_PHOTO = 2003;
-    public static final int RESULT_REQUEST_PICK_TYPE = 2004;
+    private static final String TAG_CREATE_PROJECT = "TAG_CREATE_PROJECT";
     private static final String TAG = "ProjectCreateFragment";
-    final String host = Global.HOST_API + "/project";
     private final int RESULT_REQUEST_PHOTO_CROP = 2006;
-    String currentType = ProjectTypeActivity.TYPE_PRIVATE;
+    String currentType = "私有";
 
     ProjectInfo projectInfo;
     MenuItem mMenuSave;
+
     @ViewById
     ImageView projectIcon;
     @ViewById
-    EditText projectName;
+    EditText projectName, description;
     @ViewById
-    EditText description;
-    @ViewById
-    View item;
-    @ViewById
-    TextView projectTypeText;
+    CheckBox generateReadme;
+
     private Uri fileUri;
     private Uri fileCropUri;
     private String defaultIconUrl;
@@ -78,7 +87,6 @@ public class ProjectCreateFragment extends BaseFragment {
     @AfterViews
     protected void init() {
         projectInfo = new ProjectInfo();
-        projectTypeText.setText(currentType);
         imageLoadTool.loadImage(projectIcon, IconRandom.getRandomUrl(), ImageLoadTool.optionsRounded2, new SimpleImageLoadingListener() {
             @Override
             public void onLoadingComplete(String imageUri, View view, Bitmap loadedImage) {
@@ -112,38 +120,41 @@ public class ProjectCreateFragment extends BaseFragment {
         Global.popSoftkeyboard(getActivity(), description, false);
     }
 
-    @Click
-    void item() {
-        Intent intent = new Intent(getActivity(), ProjectTypeActivity_.class);
-        intent.putExtra("type", currentType);
-        startActivityForResult(intent, RESULT_REQUEST_PICK_TYPE);
-    }
-
+    @SuppressLint("CheckResult")
     @Click
     void projectIcon() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity(), R.style.MyAlertDialogStyle);
         builder.setTitle("选择图片")
                 .setCancelable(true)
-                .setItems(R.array.camera_gallery, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        if (which == 0) {
-                            camera();
-                        } else {
-                            photo();
-                        }
+                .setItems(R.array.camera_gallery, (dialog, which) -> {
+                    if (which == 0) {
+                        new RxPermissions(getActivity())
+                                .request(PermissionUtil.CAMERA_STORAGE)
+                                .subscribe(granted -> {
+                                    if (granted) {
+                                        camera();
+                                    }
+                                });
+                    } else {
+                        photo();
                     }
-                });
-        AlertDialog dialog = builder.create();
-        dialog.show();
-        CustomDialog.dialogTitleLineColor(getActivity(), dialog);
+                })
+                .show();
     }
 
     private void camera() {
-        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        fileUri = CameraPhotoUtil.getOutputMediaFileUri();
-        intent.putExtra(MediaStore.EXTRA_OUTPUT, fileUri);
-        startActivityForResult(intent, RESULT_REQUEST_PHOTO);
+        File tempFile = CameraPhotoUtil.getCacheFile(getActivity());
+        fileUri = FileProviderHelp.getUriForFile(getActivity(), tempFile);
+
+        Intent intentFromCapture = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        intentFromCapture.putExtra(MediaStore.EXTRA_OUTPUT, fileUri);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {//7.0及以上
+            intentFromCapture.addFlags(FLAG_GRANT_READ_URI_PERMISSION);
+            intentFromCapture.addFlags(FLAG_GRANT_WRITE_URI_PERMISSION);
+        }
+
+        startActivityForResult(intentFromCapture, RESULT_REQUEST_PHOTO);
     }
 
     private void photo() {
@@ -156,17 +167,18 @@ public class ProjectCreateFragment extends BaseFragment {
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == RESULT_REQUEST_PHOTO) {
             if (resultCode == Activity.RESULT_OK) {
-                if (data != null) {
+                if (data != null && data.getData() != null) {
                     fileUri = data.getData();
                 }
+
                 fileCropUri = CameraPhotoUtil.getOutputMediaFileUri();
-                Global.cropImageUri(this, fileUri, fileCropUri, 600, 600, RESULT_REQUEST_PHOTO_CROP);
+                Global.startPhotoZoom(this, getActivity(), fileUri, fileCropUri,  RESULT_REQUEST_PHOTO_CROP);
             }
 
         } else if (requestCode == RESULT_REQUEST_PHOTO_CROP) {
             if (resultCode == Activity.RESULT_OK) {
                 try {
-                    String filePath = Global.getPath(getActivity(), fileCropUri);
+                    String filePath = FileUtil.getPath(getActivity(), fileCropUri);
                     projectIcon.setImageURI(fileCropUri);
                     projectInfo.icon = filePath;
 
@@ -174,15 +186,7 @@ public class ProjectCreateFragment extends BaseFragment {
                     Global.errorLog(e);
                 }
             }
-        } else if (requestCode == RESULT_REQUEST_PICK_TYPE) {
-            if (resultCode == Activity.RESULT_OK) {
-                String type = data.getStringExtra("type");
-                if (TextUtils.isEmpty(type)) {
-                    return;
-                }
-                currentType = type;
-                projectTypeText.setText(currentType);
-            }
+
         } else {
             super.onActivityResult(requestCode, resultCode, data);
         }
@@ -204,7 +208,7 @@ public class ProjectCreateFragment extends BaseFragment {
 
         int itemId_ = item.getItemId();
         if (itemId_ == R.id.action_finish) {
-            action_done();
+            actionDone();
             return true;
         }
         return false;
@@ -233,7 +237,7 @@ public class ProjectCreateFragment extends BaseFragment {
         }
     }
 
-    private void action_done() {
+    private void actionDone() {
         initProjectInfo();
     }
 
@@ -243,28 +247,25 @@ public class ProjectCreateFragment extends BaseFragment {
             showButtomToast("项目名不能为空...");
             return;
         }
-        if (!InitProUtils.textValidate(projectInfo.name)) {
+        if (!InputCheck.textValidate(projectInfo.name)) {
             showWarningDialog();
             return;
         }
         projectInfo.description = description.getText().toString().trim();
-        projectInfo.type = "2";//默认私有
-        if (currentType.equals(ProjectTypeActivity.TYPE_PUBLIC)) {
-            projectInfo.type = "1";
-        }
-        projectInfo.gitEnable = "true";
-        projectInfo.gitReadmeEnabled = "false";
-        projectInfo.gitIgnore = "no";
-        projectInfo.gitLicense = "no";
-        projectInfo.importFrom = "";
-        projectInfo.vcsType = "git";
         /*projectInfo.icon="";*/
         showProgressBar(true, "正在创建项目...");
         createProject();
     }
 
+    @CheckedChange
+    void generateReadme(boolean checked) {
+        projectInfo.gitReadmeEnabled = checked;
+    }
+
     private void createProject() {
+        final String host = UriCompat.createProject();
         RequestParams params = new RequestParams();
+
         params.put("name", projectInfo.name);
         params.put("description", projectInfo.description);
         params.put("type", projectInfo.type);
@@ -285,19 +286,22 @@ public class ProjectCreateFragment extends BaseFragment {
             Log.d(TAG, "" + e.toString());
         }
 
-        postNetwork(host, params, host);
+        postNetwork(host, params, TAG_CREATE_PROJECT);
     }
 
     @Override
     public void parseJson(int code, JSONObject respanse, String tag, int pos, Object data) throws JSONException {
         showProgressBar(false);
-        if (tag.equals(host)) {
+        if (tag.equals(TAG_CREATE_PROJECT)) {
             if (code == 0) {
-//                InitProUtils.intentToMain(getActivity());
+                umengEvent(UmengEvent.PROJECT, "新建项目");
+                umengEvent(UmengEvent.E_PROJECT, "新建项目");
+
+                EventBus.getDefault().post(new EventRefresh(true));
                 String path = respanse.optString("data");
                 ProjectHomeActivity_
                         .intent(this)
-                        .mJumpParam(new ProjectActivity.ProjectJumpParam(path))
+                        .mJumpParam(new ProjectJumpParam(path))
                         .mNeedUpdateList(true)
                         .start();
                 getActivity().finish();
@@ -312,17 +316,10 @@ public class ProjectCreateFragment extends BaseFragment {
     private void showWarningDialog() {
         LayoutInflater factory = LayoutInflater.from(getActivity());
         final View textEntryView = factory.inflate(R.layout.init_dialog_text_entry2, null);
-        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-        AlertDialog dialog = builder.setTitle("提示")
+        new AlertDialog.Builder(getActivity(), R.style.MyAlertDialogStyle).setTitle("提示")
                 .setView(textEntryView)
-                .setPositiveButton("关闭", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        dialog.dismiss();
-                    }
-                })
+                .setPositiveButton("关闭", (dialog1, which) -> dialog1.dismiss())
                 .show();
-        CustomDialog.dialogTitleLineColor(getActivity(), dialog);
     }
 
     public static class IconRandom {
@@ -364,14 +361,14 @@ public class ProjectCreateFragment extends BaseFragment {
     public final class ProjectInfo {
         String name;
         String description;
-        String type;
-        String gitEnable;
-        String gitReadmeEnabled;
-        String gitIgnore;
-        String gitLicense;
-        String importFrom;
-        String vcsType;
-        String icon;
+        int type = 2; // 默认私有
+        boolean gitEnable = true;
+        boolean gitReadmeEnabled = false;
+        String gitIgnore = "no";
+        String gitLicense = "no";
+        String importFrom = "";
+        String vcsType = "git";
+        String icon = "";
     }
 
 

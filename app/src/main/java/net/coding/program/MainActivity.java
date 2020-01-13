@@ -1,411 +1,506 @@
 package net.coding.program;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
+import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.Intent;
-import android.content.IntentFilter;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
+import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
+import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
-import android.support.v7.app.ActionBar;
-import android.support.v7.widget.Toolbar;
+import android.support.v7.app.AlertDialog;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
-import android.view.LayoutInflater;
-import android.view.Menu;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.BaseAdapter;
-import android.widget.ImageView;
-import android.widget.Spinner;
-import android.widget.TextView;
 
-import com.tencent.android.tpush.XGPushManager;
-import com.tencent.android.tpush.service.XGPushService;
+import com.roughike.bottombar.BottomBar;
+import com.tbruyelle.rxpermissions2.RxPermissions;
 
-import net.coding.program.common.LoginBackground;
-import net.coding.program.common.htmltext.URLSpanNoUnderline;
-import net.coding.program.maopao.MaopaoListFragment;
-import net.coding.program.maopao.MaopaoListFragment_;
+import net.coding.program.common.Global;
+import net.coding.program.common.GlobalCommon;
+import net.coding.program.common.GlobalData;
+import net.coding.program.common.GlobalVar_;
+import net.coding.program.common.Unread;
+import net.coding.program.common.UnreadNotify;
+import net.coding.program.common.event.EventMessage;
+import net.coding.program.common.event.EventNotifyBottomBar;
+import net.coding.program.common.event.EventShowBottom;
+import net.coding.program.common.model.AccountInfo;
+import net.coding.program.common.network.MyAsyncHttpClient;
+import net.coding.program.common.network.util.Login;
+import net.coding.program.common.ui.BaseActivity;
+import net.coding.program.maopao.MainMaopaoFragment_;
 import net.coding.program.message.UsersListFragment_;
-import net.coding.program.model.AccountInfo;
-import net.coding.program.project.ProjectFragment;
-import net.coding.program.project.ProjectFragment_;
-import net.coding.program.project.init.InitProUtils;
-import net.coding.program.setting.SettingFragment_;
-import net.coding.program.task.TaskFragment_;
+import net.coding.program.network.BaseHttpObserver;
+import net.coding.program.network.Network;
+import net.coding.program.pay.WXPay;
+import net.coding.program.project.MainProjectFragment;
+import net.coding.program.push.CodingPush;
+import net.coding.program.push.xiaomi.EventPushToken;
+import net.coding.program.push.xiaomi.EventUnbindToken;
+import net.coding.program.setting.MainSettingFragment_;
+import net.coding.program.task.MainTaskFragment_;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.EActivity;
-import org.androidannotations.annotations.Extra;
+import org.androidannotations.annotations.UiThread;
 import org.androidannotations.annotations.ViewById;
-import org.androidannotations.annotations.res.StringArrayRes;
+import org.androidannotations.annotations.res.DimensionPixelSizeRes;
+import org.androidannotations.annotations.sharedpreferences.Pref;
+import org.androidannotations.api.builder.FragmentBuilder;
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-@EActivity(R.layout.activity_main)
-public class MainActivity extends BaseActivity
-        implements NavigationDrawerFragment_.NavigationDrawerCallbacks {
+import network.coding.net.checknetwork.CheckNetworkIntentService;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.schedulers.Schedulers;
+
+@EActivity(R.layout.activity_main_parent)
+public class MainActivity extends BaseActivity {
 
     public static final String TAG = "MainActivity";
-    public static final String BroadcastPushStyle = "BroadcastPushStyle";
-    NavigationDrawerFragment_ mNavigationDrawerFragment;
-    String mTitle;
-    @Extra
-    String mPushUrl;
-    @StringArrayRes
-    String drawer_title[];
-    @StringArrayRes
-    String maopao_action_types[];
+    private static boolean sNeedWarnEmailNoValidLogin = false;
+    private static boolean sNeedWarnEmailNoValidRegister = false;
     @ViewById
-    ViewGroup drawer_layout;
+    BottomBar bottomBar;
+    @ViewById
+    ViewGroup container;
 
-    boolean mFirstEnter = true;
-    BroadcastReceiver mUpdatePushReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            updateNotifyService();
-        }
-    };
-    int mSelectPos = 0;
-    MySpinnerAdapter mSpinnerAdapter;
-    private View actionbarCustom;
+    @DimensionPixelSizeRes(R.dimen.main_container_merge_bottom)
+    int bottomMerge;
+    @Pref
+    GlobalVar_ globalVar;
+
+    private Handler handerNotify = null;
+
     private long exitTime = 0;
+    private boolean mKeyboardUp;
+    private boolean isResume = false;
+
+    public static void setNeedWarnEmailNoValidLogin() {
+        sNeedWarnEmailNoValidLogin = true;
+    }
+
+    public static void setNeedWarnEmailNoValidRegister() {
+        sNeedWarnEmailNoValidRegister = true;
+    }
+
+    private void setListenerToRootView() {
+        final View rootView = getWindow().getDecorView().findViewById(R.id.frameLayout);
+        rootView.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            // getActionBarHeight() + getStatusBarHeight() + bottomBar();
+            final int headerHeight = GlobalCommon.dpToPx(150);
+            int rootViewHeight = rootView.getRootView().getHeight();
+            int rootHeight = rootView.getHeight();
+            int heightDiff = rootViewHeight - rootHeight;
+            if (heightDiff > headerHeight) {
+                if (!mKeyboardUp) {
+                    mKeyboardUp = true;
+                    showBottomBar(!mKeyboardUp);
+                }
+            } else {
+                if (mKeyboardUp) {
+                    mKeyboardUp = false;
+                    setBottomBar();
+                }
+            }
+
+        });
+    }
+
+    private void setBottomBar() {
+        bottomBar.postDelayed(() -> {
+            showBottomBar(!mKeyboardUp);
+        }, 300);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        MyApp.setMainActivityState(true);
 
-        IntentFilter intentFilter = new IntentFilter(BroadcastPushStyle);
-        registerReceiver(mUpdatePushReceiver, intentFilter);
+        MarketingHelp.showMarketing(this);
 
-//        XGPushConfig.enableDebug(this, true);
-        // qq push
-        updateNotifyService();
-        pushInXiaomi();
+        warnMailNoValidLogin();
+        warnMailNoValidRegister();
 
-        LoginBackground loginBackground = new LoginBackground(this);
-        loginBackground.update();
+        CodingPush.INSTANCE.bindGK(this, AccountInfo.loadAccount(this).global_key);
 
-        mFirstEnter = (savedInstanceState == null);
+        startExtraServiceDelay();
+        EventBus.getDefault().register(this);
 
-        if (savedInstanceState != null) {
-            mSelectPos = savedInstanceState.getInt("pos", 0);
-            mTitle = savedInstanceState.getString("mTitle");
+        requestPermission();
+
+        WXPay.getInstance().regToWeixin(this);
+    }
+
+    @UiThread(delay = 2000)
+    void requestPermission() {
+        if (!isResume) {
+            return;
         }
 
-        if (mPushUrl != null) {
-            URLSpanNoUnderline.openActivityByUri(this, mPushUrl, true);
-            mPushUrl = null;
-            getIntent().getExtras().remove("mPushUrl");
+        requestPermissionReal();
+    }
+
+    @UiThread(delay = 3000)
+    void startExtraServiceDelay() {
+        if (MainActivity.this.isFinishing()) {
+            return;
+        }
+
+        startExtraService();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        isResume = true;
+
+        handerNotify = new Handler(getMainLooper()) {
+            @Override
+            public void handleMessage(Message msg) {
+                Log.d(TAG, "receiver handler message");
+                super.handleMessage(msg);
+                updateNotifyFromService();
+
+                handerNotify.sendEmptyMessageDelayed(0, 5 * 1000);
+            }
+        };
+
+        handerNotify.sendEmptyMessage(0);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        isResume = false;
+
+        if (handerNotify != null) {
+            handerNotify.removeMessages(0);
+            handerNotify = null;
+        }
+    }
+
+    @SuppressLint("CheckResult")
+    private void requestPermissionReal() {
+        RxPermissions permissions = new RxPermissions(this);
+        permissions.requestEach(Manifest.permission.READ_PHONE_STATE,
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                .subscribe(permission -> {
+                    if (permission.granted) {
+                        startPushService();
+                    }
+                });
+    }
+
+    protected void startExtraService() {
+//         检查客户端的网络状况
+        startNetworkCheckService();
+    }
+
+    protected void startPushService() {
+        runOtherPushServer();
+    }
+
+    private void runOtherPushServer() {
+        CodingPush.INSTANCE.onCreate(this, AccountInfo.loadAccount(this).global_key);
+    }
+
+    private void startNetworkCheckService() {
+        Intent intent = new Intent(this, CheckNetworkIntentService.class);
+        String extra = Global.getExtraString(this);
+        intent.putExtra("PARAM_APP", extra);
+
+        intent.putExtra("PARAM_GK", GlobalData.sUserObject.global_key);
+        String sid = MyAsyncHttpClient.getCookie(this, Global.HOST);
+        intent.putExtra("PARAM_COOKIE", sid);
+
+        startService(intent);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        updateNotifyFromService();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        CodingPush.INSTANCE.onActivityResult(requestCode, resultCode, data);
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private void warnMailNoValidLogin() {
+        if (sNeedWarnEmailNoValidLogin) {
+            sNeedWarnEmailNoValidLogin = false;
+
+            String emailString = GlobalData.sUserObject.email;
+            boolean emailValid = GlobalData.sUserObject.isEmailValidation();
+            if (!emailString.isEmpty() && !emailValid) {
+                new AlertDialog.Builder(this, R.style.MyAlertDialogStyle)
+                        .setTitle("激活邮件")
+                        .setMessage(R.string.alert_activity_email2)
+                        .setPositiveButton("重发激活邮件", (dialog, which) -> {
+                            Login.resendActivityEmail(MainActivity.this);
+                        })
+                        .setNegativeButton("取消", null)
+                        .show();
+            }
+        }
+    }
+
+    private void warnMailNoValidRegister() {
+        if (sNeedWarnEmailNoValidRegister) {
+            sNeedWarnEmailNoValidRegister = false;
+
+            new AlertDialog.Builder(this, R.style.MyAlertDialogStyle)
+                    .setTitle("提示")
+                    .setMessage(R.string.alert_activity_email)
+                    .setPositiveButton("确定", null)
+                    .show();
         }
     }
 
     @Override
     protected void onDestroy() {
-        unregisterReceiver(mUpdatePushReceiver);
-
         super.onDestroy();
-    }
 
-    @Override
-    public void finish() {
-        MyApp.setMainActivityState(false);
+        CodingPush.INSTANCE.onDestroy();
 
-        super.finish();
-    }
-
-    // 信鸽文档推荐调用，防止在小米手机上收不到推送
-    private void pushInXiaomi() {
-        Context context = getApplicationContext();
-        Intent service = new Intent(context, XGPushService.class);
-        context.startService(service);
-    }
-
-    private void updateNotifyService() {
-        boolean needPush = AccountInfo.getNeedPush(this);
-
-        if (needPush) {
-            String globalKey = MyApp.sUserObject.global_key;
-            XGPushManager.registerPush(this, globalKey);
-        } else {
-            XGPushManager.registerPush(this, "*");
-        }
+        EventBus.getDefault().unregister(this);
     }
 
     @AfterViews
-    void init() {
-        Intent intent = new Intent(this, UpdateService.class);
-        intent.putExtra(UpdateService.EXTRA_BACKGROUND, true);
-        intent.putExtra(UpdateService.EXTRA_WIFI, true);
-        intent.putExtra(UpdateService.EXTRA_DEL_OLD_APK, true);
-        startService(intent);
+    final void initMainActivity() {
+        setActionBarTitle("");
 
-        mSpinnerAdapter = new MySpinnerAdapter(getLayoutInflater(), maopao_action_types);
+        Global.display(this);
 
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
+        setListenerToRootView();
 
-        ActionBar supportActionBar = getSupportActionBar();
-        supportActionBar.setCustomView(R.layout.actionbar_custom_spinner);
-        actionbarCustom = supportActionBar.getCustomView();
-        Spinner spinner = (Spinner) supportActionBar.getCustomView().findViewById(R.id.spinner);
-        spinner.setAdapter(mSpinnerAdapter);
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            String[] strings = getResources().getStringArray(R.array.maopao_action_types);
+        bottomBar.setOnTabSelectListener(tabId -> switchTab(tabId));
 
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                Fragment fragment;
-                Bundle bundle = new Bundle();
-                mSpinnerAdapter.setCheckPos(position);
+    }
 
-                switch (position) {
-                    case 1:
-                        fragment = new MaopaoListFragment_();
-                        bundle.putSerializable("mType", MaopaoListFragment.Type.friends);
-                        break;
+    protected void switchTab(int tabId) {
+        isOpenDrawerLayout(tabId == R.id.tabTask);
+        updateNotifyFromService();
+        switch (tabId) {
+            case R.id.tabProject:
+                switchProject();
+                break;
 
-                    case 2:
-                        fragment = new MaopaoListFragment_();
-                        bundle.putSerializable("mType", MaopaoListFragment.Type.hot);
-                        break;
+            case R.id.tabTask:
+                switchFragment(MainTaskFragment_.FragmentBuilder_.class);
+                break;
 
-                    case 0:
-                    default:
-                        fragment = new MaopaoListFragment_();
-                        bundle.putSerializable("mType", MaopaoListFragment.Type.time);
+            case R.id.tabMaopao:
+                switchFragment(MainMaopaoFragment_.FragmentBuilder_.class);
+                break;
 
-                        break;
-                }
+            case R.id.tabMessage:
+                switchFragment(UsersListFragment_.FragmentBuilder_.class);
+                break;
 
-                fragment.setArguments(bundle);
-
-                FragmentManager fm = getSupportFragmentManager();
-                FragmentTransaction ft = fm.beginTransaction();
-                Log.d("", ft == null ? "is null" : "is good");
-                ft.replace(R.id.container, fragment, strings[position]);
-                ft.commit();
-
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-
-            }
-        });
-
-        mNavigationDrawerFragment = (NavigationDrawerFragment_)
-                getSupportFragmentManager().findFragmentById(R.id.navigation_drawer);
-
-        mTitle = drawer_title[0];
-
-        mNavigationDrawerFragment.setUp(
-                R.id.navigation_drawer,
-                (DrawerLayout) findViewById(R.id.drawer_layout));
-
-        if (mFirstEnter) {
-            onNavigationDrawerItemSelected(0);
+            case R.id.tabMy:
+                switchSetting();
+                break;
         }
     }
 
-    @Override
-    public void onNavigationDrawerItemSelected(int position) {
-        mSelectPos = position;
-        Fragment fragment = null;
+    protected void switchSetting() {
+        switchFragment(MainSettingFragment_.FragmentBuilder_.class);
+    }
 
-        switch (position) {
-            case 0:
-                fragment = new ProjectFragment_();
-                break;
-            case 1:
-                fragment = new TaskFragment_();
-                break;
-            case 2:
-                // 进入冒泡页面，单独处理
-                break;
+    protected void switchProject() {
+        switchFragment(MainProjectFragment.FragmentBuilder_.class);
+    }
 
-            case 3:
-                fragment = new UsersListFragment_();
-                break;
+    final protected void switchFragment(Class<?> cls) {
+        String tag = cls.getName();
+        Fragment showFragment = getSupportFragmentManager().findFragmentByTag(tag);
 
-            case 4:
-                fragment = new SettingFragment_();
-                break;
-        }
-
-        if (fragment != null) {
-            getSupportFragmentManager().beginTransaction().replace(R.id.container, fragment).commit();
-        }
-
-        if (position == 2) {
-            ActionBar actionBar = getSupportActionBar();
-            Spinner spinner;
-            actionBar.setDisplayShowCustomEnabled(true);
-            actionBar.setCustomView(actionbarCustom);
-            spinner = (Spinner) actionbarCustom.findViewById(R.id.spinner);
-            List<Fragment> fragments = getSupportFragmentManager().getFragments();
-
-            boolean containFragment = false;
-            for (Fragment item : fragments) {
-                if (item instanceof MaopaoListFragment) {
-                    containFragment = true;
-                    break;
-                }
+        FragmentTransaction fragmentTransaction = getSupportFragmentManager().beginTransaction();
+        if (showFragment == null) {
+            try {
+                showFragment = (Fragment) ((FragmentBuilder) cls.newInstance()).build();
+                fragmentTransaction.add(R.id.container, showFragment, tag);
+            } catch (Exception e) {
+                Global.errorLog(e);
             }
-
-            if (!containFragment) {
-                int pos = spinner.getSelectedItemPosition();
-                spinner.getOnItemSelectedListener().onItemSelected(null, null, pos, pos);
-            }
-        }
-    }
-
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putInt("pos", mSelectPos);
-//        outState.putSerializable("mPushOpened", mPushOpened);
-        outState.putString("mTitle", mTitle);
-    }
-
-    @Override
-    protected void onRestoreInstanceState(Bundle savedInstanceState) {
-        super.onRestoreInstanceState(savedInstanceState);
-        mSelectPos = savedInstanceState.getInt("pos", 0);
-        mTitle = savedInstanceState.getString("mTitle");
-        restoreActionBar();
-    }
-
-    public void restoreActionBar() {
-        mTitle = drawer_title[mSelectPos];
-        ActionBar actionBar = getSupportActionBar();
-        if (mSelectPos != 2) {
-            actionBar.setDisplayShowCustomEnabled(false);
-            actionBar.setDisplayShowTitleEnabled(true);
-            actionBar.setTitle(mTitle);
-//            actionBar.setIcon(R.drawable.ic_lancher);
         } else {
-            actionBar.setDisplayShowCustomEnabled(true);
-            actionBar.setCustomView(actionbarCustom);
-            actionBar.setTitle("");
-//             Spinner   spinner = (Spinner) actionbarCustom.findViewById(R.id.spinner);
-//            spinner.setSelection(1);
-//            spinner.setSelection(0);
+            fragmentTransaction.show(showFragment);
         }
-    }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        if (!mNavigationDrawerFragment.isDrawerOpen()) {
-
-            restoreActionBar();
-            return true;
-        }
-        return super.onCreateOptionsMenu(menu);
-    }
-
-    //当项目设置里删除项目后，重新跳转到主界面，并刷新ProjectFragment
-    @Override
-    protected void onNewIntent(Intent intent) {
-        String action = intent.getStringExtra("action");
-        if (!TextUtils.isEmpty(action) && action.equals(InitProUtils.FLAG_REFRESH)) {
-            List<Fragment> fragments = getSupportFragmentManager().getFragments();
-            for (Fragment item : fragments) {
-                if (item instanceof ProjectFragment) {
-                    if (item.isAdded()) {
-                        ((ProjectFragment) item).onRefresh();
-                    }
-                    break;
+        List<Fragment> allFragments = getSupportFragmentManager().getFragments();
+        if (allFragments != null) {
+            for (Fragment item : allFragments) {
+                if (item != showFragment) {
+                    fragmentTransaction.hide(item);
                 }
             }
         }
-        super.onNewIntent(intent);
+
+        fragmentTransaction.commit();
+
+    }
+
+    // 判断是否打开DrawerLayout
+    private void isOpenDrawerLayout(boolean isOpen) {
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
+        if (drawer == null) return;
+        if (isOpen) {
+            drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED);
+        } else {
+            drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED);
+        }
     }
 
     @Override
     public void onBackPressed() {
-        exitApp();
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
+        if (drawer != null && drawer.isDrawerOpen(GravityCompat.END)) {
+            drawer.closeDrawer(GravityCompat.END);
+        } else {
+            exitApp();
+        }
     }
 
     private void exitApp() {
         if ((System.currentTimeMillis() - exitTime) > 2000) {
-            showButtomToast("再按一次退出Coding");
+            showButtomToast(R.string.exit_app);
             exitTime = System.currentTimeMillis();
         } else {
             finish();
         }
     }
 
-    class MySpinnerAdapter extends BaseAdapter {
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onEventBottomBarNotify(EventNotifyBottomBar notify) {
+        updateNotify();
+    }
 
-        final int spinnerIcons[] = new int[]{
-                R.drawable.ic_spinner_maopao_time,
-                R.drawable.ic_spinner_maopao_friend,
-                R.drawable.ic_spinner_maopao_hot,
-        };
-        int checkPos = 0;
-        private LayoutInflater inflater;
-        private String[] project_activity_action_list;
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onEventBottomBar(EventShowBottom showBottom) {
+        showBottomBar(showBottom.showBottom);
+    }
 
-        public MySpinnerAdapter(LayoutInflater inflater, String[] titles) {
-            this.inflater = inflater;
-            this.project_activity_action_list = titles;
+    @SuppressLint("MissingPermission")
+    @Subscribe(threadMode = ThreadMode.MAIN, sticky = true)
+    public void onEventPushToken(EventPushToken pushToken) {
+        if (TextUtils.isEmpty(pushToken.getType()) || TextUtils.isEmpty(pushToken.getToken())) {
+            return;
         }
 
-        public void setCheckPos(int pos) {
-            checkPos = pos;
+        Map<String, String> map = new HashMap<>();
+        map.put("push", pushToken.getType());
+        map.put("token", pushToken.getToken());
+        try {
+            map.put("deviceBrand", Build.BRAND);
+            map.put("deviceType", Build.MODEL);
+            TelephonyManager tm = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
+            map.put("imei", tm.getDeviceId());
+        } catch (Exception e) {
+            Global.errorLog(e);
         }
 
-        @Override
-        public int getCount() {
-            return spinnerIcons.length;
+        Network.getRetrofit(this)
+                .registerPush(map)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new BaseHttpObserver(this) {
+                    @Override
+                    public void onSuccess() {
+                        super.onSuccess();
+                        globalVar.edit()
+                                .pushType()
+                                .put(pushToken.getType())
+                                .pushToken()
+                                .put(pushToken.getToken())
+                                .apply();
+                    }
+
+                    @Override
+                    public void onFail(int errorCode, @NonNull String error) {
+//                        super.onFail(errorCode, error);
+                    }
+                });
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN, sticky = true)
+    public void onEventUnbindPushToken(EventUnbindToken unbind) {
+        String type = globalVar.pushType().get();
+        String token = globalVar.pushToken().get();
+        if (TextUtils.isEmpty(type) || TextUtils.isEmpty(token)) {
+            return;
         }
 
-        @Override
-        public Object getItem(int position) {
-            return position;
-        }
+        Map<String, String> map = new HashMap<>();
+        map.put("push", type);
+        map.put("token", token);
 
-        @Override
-        public long getItemId(int position) {
-            return position;
-        }
+        Network.getRetrofit(this)
+                .unRegisterPush(map)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new BaseHttpObserver(this) {
+                    @Override
+                    public void onSuccess() {
+                        super.onSuccess();
+                        globalVar.edit()
+                                .pushType()
+                                .remove()
+                                .pushToken()
+                                .remove()
+                                .apply();
+                    }
 
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            if (convertView == null) {
-                convertView = inflater.inflate(R.layout.spinner_layout_head, parent, false);
-            }
+                    @Override
+                    public void onFail(int errorCode, @NonNull String error) {
+//                        super.onFail(errorCode, error);
+                    }
+                });
+    }
 
-            ((TextView) convertView).setText(project_activity_action_list[position]);
+    private void showBottomBar(boolean show) {
+        bottomBar.setVisibility(show ? View.VISIBLE : View.GONE);
 
-            return convertView;
-        }
+        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) container.getLayoutParams();
+        lp.bottomMargin = show ? bottomMerge : 0;
+        container.setLayoutParams(lp);
+    }
 
-        @Override
-        public View getDropDownView(int position, View convertView, ViewGroup parent) {
-            if (convertView == null) {
-                convertView = inflater.inflate(R.layout.spinner_layout_item, parent, false);
-            }
-
-            TextView title = (TextView) convertView.findViewById(R.id.title);
-            title.setText(project_activity_action_list[position]);
-
-            ImageView icon = (ImageView) convertView.findViewById(R.id.icon);
-            icon.setImageResource(spinnerIcons[position]);
-
-            if (checkPos == position) {
-                convertView.setBackgroundColor(getResources().getColor(R.color.divide));
-            } else {
-                convertView.setBackgroundColor(getResources().getColor(R.color.transparent));
-            }
-            return convertView;
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onEventLoginOut(EventMessage eventMessage) {
+        if (eventMessage.type == EventMessage.Type.loginOut) {
+            finish();
         }
     }
 
+    public void updateNotifyFromService() {
+        UnreadNotify.update(this);
+    }
+
+    public void updateNotify() {
+        Unread unread = GlobalData.sUnread;
+        bottomBar.getTabWithId(R.id.tabProject).setBadgeCount(unread.getProjectCount() > 0 ? 0 : -1);
+        int notifyCount = unread.getNotifyCount();
+        if (notifyCount <= 0) {
+            notifyCount = -1;
+        }
+        bottomBar.getTabWithId(R.id.tabMessage).setBadgeCount(notifyCount);
+    }
 }

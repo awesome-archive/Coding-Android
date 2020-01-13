@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+
+    <RelativeLayout
+        android:id="@+id/topSection"
+        android:layout_width="match_parent"
+        android:layout_height="30dp"
+        android:background="@color/divide"
+        android:orientation="vertical">
+
+        <View style="@style/DivideSectionBottom5" />
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_marginLeft="@dimen/padding_15"
+            android:layout_marginRight="@dimen/padding_15"
+            android:textColor="@color/font_1"
+            android:textSize="14sp"
+            tools:text="A" />
+
+        <View
+            style="@style/DivideSectionTop5"
+            android:layout_alignParentBottom="true" />
+
+    </RelativeLayout>
+
+    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:background="@color/stand_bg"
+        android:foreground="?attr/selectableItemBackground"
+        android:orientation="vertical"
+        android:paddingLeft="@dimen/padding_15"
+        android:paddingRight="30dp">
+
+        <TextView
+            android:id="@+id/countryName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:textColor="@color/font_1" />
+
+        <TextView
+            android:id="@+id/countryPhone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentRight="true"
+            android:layout_centerVertical="true"
+            android:textColor="@color/font_3" />
+
+        <View
+            android:id="@+id/topLine"
+            style="@style/DivideLine" />
+
+    </RelativeLayout>
+
+</LinearLayout>

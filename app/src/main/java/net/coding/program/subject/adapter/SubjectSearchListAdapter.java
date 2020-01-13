@@ -9,12 +9,13 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.TextView;
 
-import net.coding.program.BackActivity;
 import net.coding.program.R;
 import net.coding.program.common.Global;
+import net.coding.program.common.GlobalCommon;
 import net.coding.program.common.HtmlContent;
 import net.coding.program.common.ImageLoadTool;
-import net.coding.program.model.Maopao;
+import net.coding.program.common.model.Maopao;
+import net.coding.program.common.param.MessageParse;
 
 import java.util.List;
 
@@ -78,8 +79,8 @@ public class SubjectSearchListAdapter extends BaseAdapter {
         if (maopaoObjectItems != null && position >= 0 && position < maopaoObjectItems.size()) {
             Maopao.MaopaoObject maopaoObject = maopaoObjectItems.get(position);
             if (maopaoObject != null) {
-                Global.MessageParse parse = HtmlContent.parseMessage(maopaoObject.content);
-                viewHolder.content.setText(Global.changeHyperlinkColor(HtmlContent.parseReplacePhotoMonkey(parse.text), mImageGetter, Global.tagHandler));
+                MessageParse parse = HtmlContent.parseMessage(maopaoObject.content);
+                viewHolder.content.setText(GlobalCommon.changeHyperlinkColor(HtmlContent.parseReplacePhotoMonkey(parse.text), mImageGetter, Global.tagHandler));
                 viewHolder.likeCountView.setText(String.valueOf(maopaoObject.likes));
                 if (maopaoObject.owner != null && !TextUtils.isEmpty(maopaoObject.owner.avatar))
                     mImageLoadTool.loadImage(viewHolder.userIconView, maopaoObject.owner.avatar);

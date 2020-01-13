@@ -5,9 +5,11 @@
     tools:context="net.coding.program.project.detail.MembersActivity">
 
     <ListView
+        android:id="@+id/listView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:footerDividersEnabled="false"
-        android:id="@+id/listView" />
+        android:divider="@null"
+        android:dividerHeight="0dp"
+        android:footerDividersEnabled="false" />
 
 </FrameLayout>

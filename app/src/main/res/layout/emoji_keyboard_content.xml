@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/emojiKeyboardLayout"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/stand_bg"
+    android:clickable="true"
+    android:focusable="true"
+    android:orientation="vertical"
+    android:visibility="visible"
+    tools:showIn="@layout/common_enter_emoji">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="7.5dp">
+
+        <android.support.v4.view.ViewPager
+            android:id="@+id/viewPager"
+            android:layout_width="match_parent"
+            android:layout_height="120dp" />
+
+        <LinearLayout
+            android:id="@+id/emojiKeyboardIndicator"
+            android:layout_width="match_parent"
+            android:layout_height="14.5dp"
+            android:layout_marginTop="7.5dp"
+            android:gravity="center"
+            android:orientation="horizontal" />
+
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="@color/emoji_line" />
+
+    <RadioGroup
+        android:layout_width="match_parent"
+        android:layout_height="45dp"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/selectEmoji"
+            android:layout_width="@dimen/emoji_switch_button_width"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_emoji_small" />
+
+        <View
+            android:layout_width="0.5dp"
+            android:layout_height="match_parent"
+            android:background="@color/emoji_line" />
+
+        <ImageView
+            android:id="@+id/selectSpringFestival"
+            android:layout_width="@dimen/emoji_switch_button_width"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:scaleType="centerInside"
+            android:src="@drawable/code_emoji" />
+
+        <View
+            android:layout_width="0.5dp"
+            android:layout_height="match_parent"
+            android:background="@color/emoji_line" />
+
+        <ImageView
+            android:id="@+id/selectMonkey"
+            android:layout_width="@dimen/emoji_switch_button_width"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_emoji_monkey" />
+
+        <View
+            android:id="@+id/selectMonkeyDivideLine"
+            android:layout_width="0.5dp"
+            android:layout_height="match_parent"
+            android:background="@color/emoji_line" />
+
+        <ImageView
+            android:id="@+id/selectZhongqiu"
+            android:layout_width="@dimen/emoji_switch_button_width"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_emoji_zhongqiu" />
+
+        <View
+            android:id="@+id/selectMonkeyDivideLine1"
+            android:layout_width="0.5dp"
+            android:layout_height="match_parent"
+            android:background="@color/emoji_line" />
+
+    </RadioGroup>
+
+</LinearLayout>

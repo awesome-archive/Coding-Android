@@ -5,6 +5,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import net.coding.program.R;
+import net.coding.program.common.LongClickLinkMovementMethod;
 
 /**
  * Created by chenchao on 15/7/8.
@@ -19,6 +20,7 @@ public class TaskListHolder {
     public TaskListHolder(View convertView) {
         mIcon = (ImageView) convertView.findViewById(R.id.icon);
         mContent = (TextView) convertView.findViewById(R.id.content);
+        mContent.setMovementMethod(LongClickLinkMovementMethod.getInstance());
         timeLineUp = convertView.findViewById(R.id.timeLineUp);
         timeLineDown = convertView.findViewById(R.id.timeLineDown);
         convertView.setTag(getTagId(), this);
@@ -29,21 +31,17 @@ public class TaskListHolder {
     }
 
     public void updateLine(int position, int count) {
-        switch (count) {
-            case 1:
-                setLine(false, false);
-                break;
-
-            default:
-                if (position == 0) {
-                    setLine(false, true);
-                } else if (position == count - 1) {
-                    setLine(true, false);
-                } else {
-                    setLine(true, true);
-                }
-                break;
+        boolean top = true;
+        boolean bottom = true;
+        if (position == 0) {
+            top = false;
         }
+        if (position == count - 1) {
+            bottom = false;
+        }
+
+        setLine(top, bottom);
+
     }
 
     private void setLine(boolean up, boolean down) {

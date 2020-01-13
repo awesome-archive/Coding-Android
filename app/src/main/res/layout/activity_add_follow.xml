@@ -1,13 +1,107 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/divide"
     android:orientation="vertical"
     tools:context="net.coding.program.user.AddFollowActivity">
 
+    <TextView
+        android:id="@+id/maxUserCount"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:background="@color/stand_bg"
+        android:gravity="center"
+        android:textColor="@color/font_2"
+        android:textSize="14sp"
+        tools:text="你还可以添加 4 个项目成员" />
+
+    <View
+        android:id="@+id/userCountLine"
+        style="@style/DivideLine"
+        android:layout_below="@id/maxUserCount" />
+
     <ListView
+        android:id="@+id/listView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:dividerHeight="0dp"
+        android:divider="@null"
+        android:layout_below="@id/userCountLine" />
+
+    <LinearLayout
+        android:id="@+id/friendLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:id="@+id/listView" />
+        android:layout_below="@id/userCountLine"
+        android:background="@color/stand_bg"
+        android:orientation="vertical"
+        android:visibility="gone"
+        tools:visibility="visible">
 
-</LinearLayout>
+        <FrameLayout
+            android:id="@+id/listItemFollow"
+            android:layout_width="match_parent"
+            android:layout_height="66dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginLeft="@dimen/padding_15"
+                android:layout_marginRight="@dimen/padding_15"
+                android:gravity="center_vertical">
+
+                <de.hdodenhof.circleimageview.CircleImageView
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_list_follow" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="12dp"
+                    android:layout_weight="1"
+                    android:text="我的关注"
+                    android:textColor="@color/font_2"
+                    android:textSize="16sp" />
+
+            </LinearLayout>
+
+        </FrameLayout>
+
+        <View style="@style/DivideLine" />
+
+        <FrameLayout
+            android:id="@+id/listItemFans"
+            android:layout_width="match_parent"
+            android:layout_height="66dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginLeft="15dp"
+                android:layout_marginRight="15dp"
+                android:gravity="center_vertical">
+
+                <de.hdodenhof.circleimageview.CircleImageView
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_list_fans" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="12dp"
+                    android:layout_weight="1"
+                    android:text="我的粉丝"
+                    android:textColor="@color/font_2"
+                    android:textSize="16sp" />
+
+            </LinearLayout>
+        </FrameLayout>
+
+        <View style="@style/DivideLine" />
+
+    </LinearLayout>
+
+</RelativeLayout>

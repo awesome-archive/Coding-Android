@@ -1,77 +1,74 @@
 package net.coding.program;
 
 import android.os.Bundle;
-import android.support.v7.app.ActionBar;
-import android.support.v7.app.ActionBarActivity;
-import android.support.v7.widget.Toolbar;
-import android.view.MenuItem;
-import android.view.View;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.Spinner;
+import android.webkit.WebView;
 
+import net.coding.program.common.Global;
+import net.coding.program.common.base.MyJsonResponse;
+import net.coding.program.common.model.ProjectObject;
+import net.coding.program.common.network.MyAsyncHttpClient;
+import net.coding.program.common.ui.BackActivity;
+import net.coding.program.project.detail.wiki.WikiMainActivity_;
+import net.coding.program.user.SetUserSkillsActivity_;
 
-public class TestActivity extends ActionBarActivity {
+import org.json.JSONObject;
+
+public class TestActivity extends BackActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_test);
 
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
+        findViewById(R.id.button).setOnClickListener(v -> click());
 
-        ActionBar supportActionBar = getSupportActionBar();
+        click();
 
-        supportActionBar.setDisplayShowCustomEnabled(true);
-        supportActionBar.setCustomView(R.layout.actionbar_custom_spinner);
-        Spinner spinner = (Spinner) supportActionBar.getCustomView().findViewById(R.id.spinner);
+    }
 
-//        spinner = (Spinner) findViewById(R.id.spinner2);
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
-                R.array.maopao_action_types, android.R.layout.simple_spinner_item);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+    private void click() {
+        WebView webView = findViewById(R.id.webView);
 
-        spinner.setAdapter(adapter);
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+        WebView.setWebContentsDebuggingEnabled(true);
+        Global.initWebView(webView);
+        webView.setWebViewClient(new CustomWebViewClient(this));
+        Global.syncCookie(this);
+
+//        webView.loadUrl("http://www.baidu.com");
+        webView.loadUrl("http://pd.codingprod.net/p/ww/setting/notice/4");
+
+    }
+
+    private void openGuide() {
+        SetUserSkillsActivity_.intent(this).start();
+    }
+
+
+    private void click1() {
+    }
+
+    private void click2() {
+        String urlProject = ProjectObject.getHttpProject("codingcorp", "TestWiki");
+
+        getNetwork(urlProject, urlProject);
+        MyAsyncHttpClient.get(this, urlProject, new MyJsonResponse(this) {
             @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-
+            public void onMySuccess(JSONObject response) {
+                super.onMySuccess(response);
+                try {
+                    ProjectObject projectObject = new ProjectObject(response.optJSONObject("data"));
+                    WikiMainActivity_.intent(TestActivity.this).project(projectObject).start();
+                } catch (Exception e) {
+                    Global.errorLog(e);
+                }
             }
 
             @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-
+            public void onMyFailure(JSONObject response) {
+                super.onMyFailure(response);
             }
         });
     }
 
-    public void click1(View v) {
-        finish();
-    }
 
-//    @Override
-//    public boolean onCreateOptionsMenu(Menu menu) {
-//        // Inflate the menu; this adds items to the action bar if it is present.
-//        getMenuInflater().inflate(R.menu.menu_test, menu);
-//        return true;
-//    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        } else if (id == android.R.id.home) {
-            finish();
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
-    }
 }

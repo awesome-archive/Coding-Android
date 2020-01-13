@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    tools:context="net.coding.program.project.detail.merge.ProjectMergeFragment">
+    tools:context="net.coding.program.project.detail.merge.ProjectPullFragment">
 
     <android.support.v4.view.ViewPager
         android:id="@+id/viewPager"
@@ -13,7 +13,8 @@
 
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="@color/divide">
 
         <RadioGroup
             android:id="@+id/checkGroup"
@@ -48,6 +49,8 @@
                 android:text="已处理"
                 android:textColor="@drawable/merge_button_color" />
         </RadioGroup>
+
+        <include layout="@layout/divide_line_1" />
 
     </FrameLayout>
 

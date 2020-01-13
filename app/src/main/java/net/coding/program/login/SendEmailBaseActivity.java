@@ -10,18 +10,19 @@ import android.widget.Toast;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 
-import net.coding.program.BackActivity;
 import net.coding.program.common.Global;
 import net.coding.program.common.network.MyAsyncHttpClient;
+import net.coding.program.common.ui.BackActivity;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.Click;
 import org.androidannotations.annotations.EActivity;
 import org.androidannotations.annotations.ViewById;
-import org.apache.http.Header;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import cz.msebera.android.httpclient.Header;
 
 //        (R.layout.activity_base_send_email)
 @EActivity

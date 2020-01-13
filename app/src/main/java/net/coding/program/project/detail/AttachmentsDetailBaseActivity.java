@@ -1,10 +1,9 @@
 package net.coding.program.project.detail;
 
-import android.app.AlertDialog;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.support.v7.app.AlertDialog;
 import android.util.Log;
 import android.view.Menu;
 import android.view.View;
@@ -12,41 +11,47 @@ import android.view.View;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.FileAsyncHttpResponseHandler;
 
-import net.coding.program.BackActivity;
 import net.coding.program.R;
-import net.coding.program.common.FileUtil;
 import net.coding.program.common.Global;
+import net.coding.program.common.base.MyJsonResponse;
+import net.coding.program.common.model.AttachmentFileObject;
+import net.coding.program.common.model.ProjectObject;
+import net.coding.program.common.model.Share;
 import net.coding.program.common.network.MyAsyncHttpClient;
-import net.coding.program.model.AttachmentFileObject;
-import net.coding.program.model.AttachmentFolderObject;
-import net.coding.program.model.ProjectObject;
+import net.coding.program.common.ui.CodingToolbarBackActivity;
+import net.coding.program.common.umeng.UmengEvent;
+import net.coding.program.common.util.FileUtil;
 import net.coding.program.project.detail.file.FileDynamicActivity;
 import net.coding.program.project.detail.file.FileDynamicActivity_;
 import net.coding.program.project.detail.file.FileSaveHelp;
 import net.coding.program.project.detail.file.ShareFileLinkActivity_;
 
 import org.androidannotations.annotations.AfterViews;
-import org.androidannotations.annotations.Click;
 import org.androidannotations.annotations.EActivity;
 import org.androidannotations.annotations.Extra;
 import org.androidannotations.annotations.OnActivityResult;
 import org.androidannotations.annotations.OptionsItem;
-import org.apache.http.Header;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
 
+import cz.msebera.android.httpclient.Header;
+
 /**
- * 展示某一项目文档目录下面文件的BsseActivity
+ * 展示某一项目文件目录下面文件的BsseActivity
  * Created by yangzhen
  */
 @EActivity
-public class AttachmentsDetailBaseActivity extends BackActivity {
+public class AttachmentsDetailBaseActivity extends CodingToolbarBackActivity {
 
     private static final int RESULT_SHARE_LINK = 1;
+    private static final String TAG_SHARE_LINK_ON = "TAG_SHARE_LINK_ON";
     private static String TAG = AttachmentsDetailBaseActivity.class.getSimpleName();
     protected File mFile;
+
+    @Extra
+    protected File mExtraFile;
     @Extra
     boolean mHideHistory = false;
     @Extra
@@ -55,8 +60,7 @@ public class AttachmentsDetailBaseActivity extends BackActivity {
     ProjectObject mProject;
     @Extra
     AttachmentFileObject mAttachmentFileObject;
-    @Extra
-    AttachmentFolderObject mAttachmentFolderObject;
+
     String urlDownload = "";
     AsyncHttpClient client;
     String fileInfoFormat =
@@ -73,18 +77,43 @@ public class AttachmentsDetailBaseActivity extends BackActivity {
 
     @AfterViews
     protected final void initAttachmentsDetailBaseActivity() {
-        getSupportActionBar().setTitle(mAttachmentFileObject.getName());
+        setActionBarTitle(mAttachmentFileObject.getName());
 
         mFileSaveHelp = new FileSaveHelp(this);
         client = MyAsyncHttpClient.createClient(AttachmentsDetailBaseActivity.this);
 
-        mFile = FileUtil.getDestinationInExternalPublicDir(getFileDownloadPath(), mAttachmentFileObject.getSaveName(mProjectObjectId));
+        if (mExtraFile != null) {
+            mFile = mExtraFile;
+        } else {
+            mFile = FileUtil.getDestinationInExternalPublicDir(getFileDownloadPath(), mAttachmentFileObject.getSaveName(mProjectObjectId));
+        }
 
-        findViewById(R.id.layout_dynamic_history).setVisibility(mHideHistory ? View.GONE : View.VISIBLE);
+        View dynamicLayout = findViewById(R.id.bottomToolBar);
+        dynamicLayout.setVisibility(mHideHistory ? View.GONE : View.VISIBLE);
+
+        if (mProject == null) {
+            dynamicLayout.setEnabled(false);
+            String url = Global.HOST_API + "/project/" + mProjectObjectId;
+            MyAsyncHttpClient.get(this, url, new MyJsonResponse(this) {
+                @Override
+                public void onMySuccess(JSONObject response) {
+                    super.onMySuccess(response);
+                    try {
+                        mProject = new ProjectObject(response.optJSONObject("data"));
+                        dynamicLayout.setEnabled(true);
+                    } catch (Exception e) {
+                        Global.errorLog(e);
+                    }
+                }
+            });
+        }
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        if (mExtraFile != null) {
+            return super.onCreateOptionsMenu(menu);
+        }
         getMenuInflater().inflate(getMenuResourceId(), menu);
         if (!mAttachmentFileObject.isOwner()) {
             menu.findItem(R.id.action_delete).setVisible(false);
@@ -97,15 +126,31 @@ public class AttachmentsDetailBaseActivity extends BackActivity {
     }
 
     @Override
+    protected ProjectObject getProject() {
+        return mProject;
+    }
+
+    @Override
     public void parseJson(int code, JSONObject response, String tag, int pos, Object data) throws JSONException {
         if (tag.equals(HOST_FILE_DELETE)) {
             if (code == 0) {
                 hideProgressDialog();
                 showButtomToast("删除完成");
                 Intent resultIntent = new Intent();
-                resultIntent.putExtra("mAttachmentFileObject", mAttachmentFileObject);
+                resultIntent.putExtra(AttachmentFileObject.RESULT, mAttachmentFileObject);
                 setResult(RESULT_OK, resultIntent);
                 finish();
+            } else {
+                showErrorMsg(code, response);
+            }
+        } else if (tag.equals(TAG_SHARE_LINK_ON)) {
+            if (code == 0) {
+                umengEvent(UmengEvent.FILE, "开启共享");
+                Share mShare = new Share(response.optJSONObject("data"));
+                mAttachmentFileObject.setShereLink(mShare.getUrl());
+
+                setResult(RESULT_OK);
+                copyShareLink();
             } else {
                 showErrorMsg(code, response);
             }
@@ -120,24 +165,13 @@ public class AttachmentsDetailBaseActivity extends BackActivity {
     @OptionsItem
     protected void action_delete() {
         String messageFormat = "确定要删除文件 \"%s\" 么？";
-        AlertDialog.Builder builder = new AlertDialog.Builder(AttachmentsDetailBaseActivity.this);
+        AlertDialog.Builder builder = new AlertDialog.Builder(AttachmentsDetailBaseActivity.this, R.style.MyAlertDialogStyle);
         builder.setTitle("删除文件").setMessage(String.format(messageFormat, mAttachmentFileObject.getName()))
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        showDialogLoading("正在删除");
-                        deleteNetwork(String.format(HOST_FILE_DELETE, mProjectObjectId, mAttachmentFileObject.file_id), HOST_FILE_DELETE);
-                    }
-                }).setNegativeButton("取消", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-
-            }
-        });
-        //builder.create().show();
-        AlertDialog dialog = builder.create();
-        dialog.show();
-        dialogTitleLineColor(dialog);
+                .setPositiveButton("确定", (dialog, which) -> {
+                    showDialogLoading();
+                    deleteNetwork(String.format(HOST_FILE_DELETE, mProjectObjectId, mAttachmentFileObject.file_id), HOST_FILE_DELETE);
+                }).setNegativeButton("取消", null)
+                .show();
 
     }
 
@@ -155,18 +189,11 @@ public class AttachmentsDetailBaseActivity extends BackActivity {
         if (mFileSaveHelp.needShowHint()) {
             String msgFormat = "您的文件将下载到以下路径：\n%s\n您也可以去设置界面设置您的下载路径";
 
-            AlertDialog.Builder builder = new AlertDialog.Builder(AttachmentsDetailBaseActivity.this);
-            builder.setTitle("提示")
-                    .setMessage(String.format(msgFormat, mFileSaveHelp.getDefaultPath())).setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    download(urlDownload);
-                }
-            });
-            //builder.create().show();
-            AlertDialog dialog = builder.create();
-            dialog.show();
-            dialogTitleLineColor(dialog);
+            new AlertDialog.Builder(this, R.style.MyAlertDialogStyle)
+                    .setTitle("提示")
+                    .setMessage(String.format(msgFormat, mFileSaveHelp.getDefaultPath()))
+                    .setPositiveButton("确定", (dialog, which) -> download(urlDownload))
+                    .show();
 
             mFileSaveHelp.alwaysHideHint();
         } else {
@@ -181,8 +208,7 @@ public class AttachmentsDetailBaseActivity extends BackActivity {
         if (pos != -1) {
             preViewUrl = preViewUrl.substring(0, pos) + "download";
         }
-        Global.copy(this, preViewUrl);
-        showButtomToast("已复制 " + preViewUrl);
+        Global.tipCopyLink(this, preViewUrl);
     }
 
     @OptionsItem
@@ -193,12 +219,21 @@ public class AttachmentsDetailBaseActivity extends BackActivity {
                 .startForResult(RESULT_SHARE_LINK);
     }
 
+    private void copyShareLink() {
+        String shareLink = mAttachmentFileObject.getShareLink();
+        Global.copy(this, shareLink);
+        showButtomToast("共享链接已复制");
+    }
+
     @OnActivityResult(RESULT_SHARE_LINK)
     void onResultShareLink(int result, Intent intent) {
         if (result == RESULT_OK) {
             setResult(result, intent);
-            mAttachmentFileObject = (AttachmentFileObject) intent.getSerializableExtra("data");
+            onRefresh();
         }
+    }
+
+    protected void onRefresh() {
     }
 
     @OptionsItem
@@ -223,8 +258,8 @@ public class AttachmentsDetailBaseActivity extends BackActivity {
 
     @OptionsItem
     void action_info() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        AlertDialog dialog = builder.setTitle("文件信息")
+        new AlertDialog.Builder(this, R.style.MyAlertDialogStyle)
+                .setTitle("文件信息")
                 .setMessage(String.format(fileInfoFormat,
                         mAttachmentFileObject.fileType,
                         Global.HumanReadableFilesize(mAttachmentFileObject.getSize()),
@@ -233,15 +268,23 @@ public class AttachmentsDetailBaseActivity extends BackActivity {
                         mAttachmentFileObject.owner.name))
                 .setPositiveButton("确定", null)
                 .show();
-        dialogTitleLineColor(dialog);
     }
 
     @Override
     public void onSaveInstanceState(Bundle outState) {
     }
 
-    @Click
+    protected View.OnClickListener clickBottomBar = v -> {
+        int id = v.getId();
+        if (id == R.id.clickFileDynamic) {
+            clickFileDynamic();
+        } else if (id == R.id.clickFileHistory) {
+            clickFileHistory();
+        }
+    };
+
     protected void clickFileDynamic() {
+        umengEvent(UmengEvent.E_FILE, "点击文件动态");
         FileDynamicActivity.ProjectFileParam param =
                 new FileDynamicActivity.ProjectFileParam(mAttachmentFileObject, mProject);
         FileDynamicActivity_.intent(this)
@@ -249,8 +292,8 @@ public class AttachmentsDetailBaseActivity extends BackActivity {
                 .start();
     }
 
-    @Click
     protected void clickFileHistory() {
+        umengEvent(UmengEvent.E_FILE, "点击历史版本");
         FileDynamicActivity.ProjectFileParam param =
                 new FileDynamicActivity.ProjectFileParam(mAttachmentFileObject, mProject);
         FileHistoryActivity_.intent(this)
@@ -271,49 +314,29 @@ public class AttachmentsDetailBaseActivity extends BackActivity {
             }
 
             @Override
+            public void onProgress(long bytesWritten, long totalSize) {
+                super.onProgress(bytesWritten, totalSize);
+                int progresss = (int) ((totalSize > 0 && bytesWritten >= 0) ? bytesWritten * 100 / totalSize : 0);
+                onDownloadProgress(progresss);
+            }
+
+            @Override
             public void onSuccess(int statusCode, Header[] headers, File response) {
                 Log.v(TAG, "onSuccess:" + statusCode + " " + headers.toString());
+                umengEvent(UmengEvent.E_FILE, "下载成功");
                 showButtomToast("下载完成");
                 isDownloading = false;
                 onDownloadFinish(true);
 
-                /*MediaScannerConnection.scanFile(AttachmentsPicDetailActivity.this,
-                        new String[]{response.toString()}, null,
-                        new MediaScannerConnection.OnScanCompletedListener() {
-                            public void onScanCompleted(String path, Uri uri) {
-                                Log.i("ExternalStorage", "Scanned " + path + ":");
-                                Log.i("ExternalStorage", "-> uri=" + uri);
-                            }
-                        });*/
                 sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(response)));
             }
 
-            @Override
-            public void onProgress(int bytesWritten, int totalSize) {
-                Log.v(TAG, String.format("Progress %d from %d (%2.0f%%)", bytesWritten, totalSize, (totalSize > 0) ? (bytesWritten * 1.0 / totalSize) * 100 : -1));
-            }
         });
     }
 
     protected void onDownloadFinish(boolean success) {
     }
 
-
-//    @Click
-//    protected void clickFileDynamic() {
-//        FileDynamicActivity.ProjectFileParam param =
-//                new FileDynamicActivity.ProjectFileParam(mAttachmentFileObject, mProjectObjectId);
-//        FileDynamicActivity_.intent(this)
-//                .mProjectFileParam(param)
-//                .start();
-//    }
-//
-//    @Click
-//    protected void clickFileHistory() {
-//        FileDynamicActivity.ProjectFileParam param =
-//                new FileDynamicActivity.ProjectFileParam(mAttachmentFileObject, mProjectObjectId);
-//        FileHistoryActivity_.intent(this)
-//                .mProjectFileParam(param)
-//                .start();
-//    }
+    protected void onDownloadProgress(int progress) {
+    }
 }

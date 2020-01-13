@@ -5,12 +5,13 @@ import android.support.v7.widget.SearchView;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.widget.ImageView;
 
-import net.coding.program.BackActivity;
 import net.coding.program.R;
-import net.coding.program.common.Global;
-import net.coding.program.model.ProjectObject;
+import net.coding.program.common.base.CustomMoreFragment;
+import net.coding.program.common.model.Merge;
+import net.coding.program.common.model.ProjectObject;
+import net.coding.program.common.ui.BackActivity;
+import net.coding.program.project.detail.merge.MergeReviewerListFragment_;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.EActivity;
@@ -25,22 +26,50 @@ public class MembersSelectActivity extends BackActivity {
     @Extra
     String mMergeUrl;
 
-    MembersListFragment fragment;
+    @Extra
+    String actionBarTitle;
+
+    @Extra
+    String userListUrl;
+
+    @Extra
+    Merge mMerge;  // 写 Reviewer 功能加上
+
+    @Extra
+    boolean mSelect = false;
+
+    CustomMoreFragment fragment;
 
     @AfterViews
     void init() {
-        if (mProjectObject != null) {
+        if (mProjectObject != null && mMerge == null) {
             fragment = new MembersListFragment_
                     .FragmentBuilder_()
                     .mProjectObject(mProjectObject)
-                    .mSelect(true)
+                    .type(MembersListFragment.Type.Pick)
                     .build();
+        } else if (userListUrl != null) {
+            String title = actionBarTitle != null ? actionBarTitle : "";
+            setActionBarTitle(title);
+            fragment = new MembersListFragment_
+                    .FragmentBuilder_()
+                    .mMergeUrl(userListUrl)
+                    .type(MembersListFragment.Type.Member)
+                    .dataType(MembersListFragment.DataType.User)
+                    .build();
+
         } else if (mMergeUrl != null) {
-            getSupportActionBar().setTitle("选择@对象");
+            setActionBarTitle("选择@对象");
             fragment = new MembersListFragment_
                     .FragmentBuilder_()
                     .mMergeUrl(mMergeUrl)
-                    .mSelect(true)
+                    .type(MembersListFragment.Type.Pick)
+                    .build();
+        } else if (mMerge != null) {
+            fragment = new MergeReviewerListFragment_
+                    .FragmentBuilder_()
+                    .mMerge(mMerge)
+                    .mSelect(mSelect)
                     .build();
         }
 
@@ -56,17 +85,7 @@ public class MembersSelectActivity extends BackActivity {
         menuInflater.inflate(R.menu.users_fans, menu);
 
         MenuItem searchItem = menu.findItem(R.id.action_search);
-        searchItem.setIcon(R.drawable.ic_menu_search);
         SearchView searchView = (SearchView) MenuItemCompat.getActionView(searchItem);
-
-        try { // 更改搜索按钮的icon
-            int searchImgId = getResources().getIdentifier("android:id/search_button", null, null);
-            ImageView v = (ImageView) searchView.findViewById(searchImgId);
-            v.setImageResource(R.drawable.ic_menu_search);
-        } catch (Exception e) {
-            Global.errorLog(e);
-        }
-
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String s) {

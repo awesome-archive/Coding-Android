@@ -1,17 +1,18 @@
 package net.coding.program.subject;
 
+import android.support.v4.view.ViewCompat;
 import android.view.View;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.ListView;
 
-import net.coding.program.MyApp;
 import net.coding.program.R;
-import net.coding.program.common.BlankViewDisplay;
 import net.coding.program.common.Global;
+import net.coding.program.common.GlobalData;
 import net.coding.program.common.MyImageGetter;
+import net.coding.program.common.model.Subject;
 import net.coding.program.common.network.RefreshBaseFragment;
-import net.coding.program.model.Subject;
+import net.coding.program.route.BlankViewDisplay;
 import net.coding.program.subject.adapter.SubjectListItemAdapter;
 
 import org.androidannotations.annotations.AfterViews;
@@ -49,28 +50,6 @@ public class SubjectListFragment extends RefreshBaseFragment {
     View blankLayout;
 
     SubjectListItemAdapter mAdapter = null;
-    private List<Subject.SubjectDescObject> mSubjectList = new ArrayList<Subject.SubjectDescObject>();
-
-    private MyImageGetter mMyImageGetter;
-
-    @AfterViews
-    protected void init() {
-        initRefreshLayout();
-
-        setRefreshing(true);
-
-        if (mType != Type.hot)
-            mFootUpdate.init(listView, mInflater, this);
-
-        mMyImageGetter = new MyImageGetter(getActivity());
-
-        mAdapter = new SubjectListItemAdapter(getActivity(), mSubjectList, mMyImageGetter);
-        listView.setAdapter(mAdapter);
-        listView.setOnItemClickListener(onItemClickListener);
-        listView.setOnScrollListener(mOnScrollListener);
-        loadMore();
-    }
-
     AbsListView.OnScrollListener mOnScrollListener = new AbsListView.OnScrollListener() {
         @Override
         public void onScrollStateChanged(AbsListView view, int scrollState) {
@@ -85,10 +64,36 @@ public class SubjectListFragment extends RefreshBaseFragment {
             }
         }
     };
+    private List<Subject.SubjectDescObject> mSubjectList = new ArrayList<Subject.SubjectDescObject>();
+    private MyImageGetter mMyImageGetter;
+    private AdapterView.OnItemClickListener onItemClickListener = new AdapterView.OnItemClickListener() {
+        @Override
+        public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+            int pos = position;
+            if (pos >= 0 && pos < mSubjectList.size()) {
+                SubjectDetailActivity_.intent(getActivity()).subjectDescObject(mSubjectList.get(pos)).start();
+            }
+        }
+    };
 
+    @AfterViews
+    protected void init() {
+        initRefreshLayout();
 
-    public enum Type {
-        follow, join, hot
+        ViewCompat.setNestedScrollingEnabled(listView, true);
+
+        setRefreshing(true);
+
+        if (mType != Type.hot)
+            mFootUpdate.init(listView, mInflater, this);
+
+        mMyImageGetter = new MyImageGetter(getActivity());
+
+        mAdapter = new SubjectListItemAdapter(getActivity(), mSubjectList, mMyImageGetter);
+        listView.setAdapter(mAdapter);
+        listView.setOnItemClickListener(onItemClickListener);
+        listView.setOnScrollListener(mOnScrollListener);
+        loadMore();
     }
 
     @Override
@@ -120,7 +125,7 @@ public class SubjectListFragment extends RefreshBaseFragment {
                     mFootUpdate.updateState(code, isLoadingLastPage(tag), mSubjectList.size());
 
                 String tip = BlankViewDisplay.OTHER_SUBJECT_BLANK;
-                if (userKey.equals(MyApp.sUserObject.global_key)) {
+                if (userKey.equals(GlobalData.sUserObject.global_key)) {
                     tip = BlankViewDisplay.MY_SUBJECT_BLANK;
                 }
                 BlankViewDisplay.setBlank(mSubjectList.size(), this, true, blankLayout, null, tip);
@@ -165,15 +170,9 @@ public class SubjectListFragment extends RefreshBaseFragment {
         return tag;
     }
 
-    private AdapterView.OnItemClickListener onItemClickListener = new AdapterView.OnItemClickListener() {
-        @Override
-        public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-            int pos = position;
-            if (pos >= 0 && pos < mSubjectList.size()) {
-                SubjectDetailActivity_.intent(getActivity()).subjectDescObject(mSubjectList.get(pos)).start();
-            }
-        }
-    };
+    public enum Type {
+        follow, join, hot
+    }
 
 }
 

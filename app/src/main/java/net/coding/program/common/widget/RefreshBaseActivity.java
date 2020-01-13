@@ -2,8 +2,8 @@ package net.coding.program.common.widget;
 
 import android.support.v4.widget.SwipeRefreshLayout;
 
-import net.coding.program.BackActivity;
 import net.coding.program.R;
+import net.coding.program.common.ui.BackActivity;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.EActivity;
@@ -15,9 +15,6 @@ import org.androidannotations.annotations.ViewById;
  */
 @EActivity
 public abstract class RefreshBaseActivity extends BackActivity implements SwipeRefreshLayout.OnRefreshListener {
-
-    public static final String UPDATE_ALL = "99999999";
-    public static final int UPDATE_ALL_INT = 99999999;
 
     @ViewById
     protected SwipeRefreshLayout swipeRefreshLayout;
@@ -34,7 +31,7 @@ public abstract class RefreshBaseActivity extends BackActivity implements SwipeR
     protected final void initRefreshBaseActivity() {
         swipeRefreshLayout = (SwipeRefreshLayout) findViewById(R.id.swipeRefreshLayout);
         swipeRefreshLayout.setOnRefreshListener(this);
-        swipeRefreshLayout.setColorSchemeResources(R.color.green);
+        swipeRefreshLayout.setColorSchemeResources(R.color.font_green);
     }
 
     protected final void disableRefreshing() {

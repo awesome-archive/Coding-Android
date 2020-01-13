@@ -2,14 +2,13 @@ package net.coding.program.message;
 
 
 import android.app.Activity;
-import android.content.DialogInterface;
 import android.content.Intent;
-import android.text.Html;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.BaseAdapter;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -17,25 +16,25 @@ import android.widget.TextView;
 import com.loopj.android.http.RequestParams;
 import com.readystatesoftware.viewbadger.BadgeView;
 
-import net.coding.program.FootUpdate;
 import net.coding.program.R;
 import net.coding.program.common.Global;
+import net.coding.program.common.GlobalCommon;
+import net.coding.program.common.LoadMore;
 import net.coding.program.common.MyImageGetter;
 import net.coding.program.common.StartActivity;
 import net.coding.program.common.Unread;
 import net.coding.program.common.UnreadNotify;
+import net.coding.program.common.model.AccountInfo;
+import net.coding.program.common.model.Message;
+import net.coding.program.common.model.UserObject;
 import net.coding.program.common.network.RefreshBaseFragment;
-import net.coding.program.model.AccountInfo;
-import net.coding.program.model.Message;
-import net.coding.program.model.UserObject;
+import net.coding.program.route.BlankViewDisplay;
 import net.coding.program.user.UsersListActivity;
-import net.coding.program.user.UsersListActivity_;
+import net.coding.program.util.TextWatcherAt;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.EFragment;
 import org.androidannotations.annotations.OnActivityResult;
-import org.androidannotations.annotations.OptionsItem;
-import org.androidannotations.annotations.OptionsMenu;
 import org.androidannotations.annotations.ViewById;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -45,35 +44,31 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 @EFragment(R.layout.fragment_users_list)
-@OptionsMenu(R.menu.message_users_list)
-public class UsersListFragment extends RefreshBaseFragment implements FootUpdate.LoadMore, StartActivity {
+public class UsersListFragment extends RefreshBaseFragment implements LoadMore, StartActivity {
 
-    public static final String HOST_MARK_MESSAGE = Global.HOST_API + "/message/conversations/%s/read";
     static WeakReference<UsersListFragment> mInstance = new WeakReference<>(null);
+    public final String HOST_MARK_MESSAGE = getHostMarkMessage();
     final String HOST_MESSAGE_USERS = Global.HOST_API + "/message/conversations?pageSize=10";
-    final String HOST_UNREAD_AT = Global.HOST_API + "/notification/unread-count?type=0";
-    final String HOST_UNREAD_COMMENT = Global.HOST_API + "/notification/unread-count?type=1&type=2";
-    final String HOST_UNREAD_SYSTEM = Global.HOST_API + "/notification/unread-count?type=4";
+
+    final String HOST_UNREAD_SYSTEM = Global.HOST_API + "/notification/unread-count";
+
+
     final String TAG_DELETE_MESSAGE = "TAG_DELETE_MESSAGE";
+
     private final int RESULT_SELECT_USER = 2001;
+    private static final int RESULT_NOTIFY = 2002;
+
     @ViewById
     ListView listView;
-    ArrayList<Message.MessageObject> mData = new ArrayList<>();
-    BadgeView badgeAt;
-    BadgeView badgeComment;
 
-    //    private void postMarkReaded(String globalKey) {
-//        String url = String.format(HOST_MARK_MESSAGE, globalKey);
-//        postNetwork(url, new RequestParams(), HOST_MARK_MESSAGE, -1, globalKey);
-//    }
+    @ViewById
+    Toolbar usersListToolbar;
+    @ViewById
+    View blankLayout;
+
+    ArrayList<Message.MessageObject> mData = new ArrayList<>();
     BadgeView badgeSystem;
     boolean mUpdateAll = false;
-    View.OnClickListener onClickRetry = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            onRefresh();
-        }
-    };
     MyImageGetter myImageGetter;
     BaseAdapter adapter = new BaseAdapter() {
         @Override
@@ -97,8 +92,7 @@ public class UsersListFragment extends RefreshBaseFragment implements FootUpdate
             if (convertView == null) {
                 convertView = mInflater.inflate(R.layout.fragment_message_user_list_item, parent, false);
                 holder = new ViewHolder();
-                holder.icon =
-                        (ImageView) convertView.findViewById(R.id.icon);
+                holder.icon = (ImageView) convertView.findViewById(R.id.icon);
                 holder.icon.setFocusable(false);
                 holder.title = (TextView) convertView.findViewById(R.id.title);
                 holder.content = (TextView) convertView.findViewById(R.id.comment);
@@ -113,8 +107,15 @@ public class UsersListFragment extends RefreshBaseFragment implements FootUpdate
             Message.MessageObject user = (Message.MessageObject) getItem(position);
             iconfromNetwork(holder.icon, user.friend.avatar);
             holder.title.setText(user.friend.name);
-            boolean isUnPlayedVoiceMessage = !user.sender.isMe() && user.played == 0 && user.file!=null && user.file.endsWith(".amr");
-            holder.content.setText(isUnPlayedVoiceMessage? Html.fromHtml("<font color='#3bbd79'>"+user.content+"</font>"):Global.recentMessage(user.content, myImageGetter, Global.tagHandler));
+            boolean isUnPlayedVoiceMessage = !user.sender.isMe() && user.played == 0 && user.file != null && user.file.endsWith(".amr");
+
+            CharSequence contentString;
+            if (isUnPlayedVoiceMessage) {
+                contentString = Global.createGreenHtml("", user.content, "");
+            } else {
+                contentString = GlobalCommon.recentMessage(user.content, myImageGetter, Global.tagHandler);
+            }
+            holder.content.setText(contentString);
             holder.time.setText(Global.dayToNow(user.created_at, false));
 
             if (user.unreadCount > 0) {
@@ -131,6 +132,11 @@ public class UsersListFragment extends RefreshBaseFragment implements FootUpdate
             return convertView;
         }
     };
+    private View listHeader;
+
+    public static String getHostMarkMessage() {
+        return Global.HOST_API + "/message/conversations/%s/read";
+    }
 
     public static void receiverMessagePush(String globalKey, String content) {
         if (mInstance != null) {
@@ -147,7 +153,15 @@ public class UsersListFragment extends RefreshBaseFragment implements FootUpdate
     }
 
     @AfterViews
-    protected void init() {
+    protected void initUsersListFragment() {
+        usersListToolbar.inflateMenu(R.menu.message_users_list);
+        usersListToolbar.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == R.id.action_message_add) {
+                TextWatcherAt.startActivityAt(getActivity(), this, RESULT_SELECT_USER);
+            }
+            return true;
+        });
+
         initRefreshLayout();
 
         myImageGetter = new MyImageGetter(getActivity());
@@ -156,36 +170,27 @@ public class UsersListFragment extends RefreshBaseFragment implements FootUpdate
 
         mFootUpdate.init(listView, mInflater, this);
         listView.setAdapter(adapter);
-        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                Message.MessageObject user = mData.get((int) id);
-                Intent intent = new Intent(getActivity(), MessageListActivity_.class);
-                intent.putExtra("mUserObject", user.friend);
-                startActivity(intent);
+        listView.setOnItemClickListener((parent, view, position, id) -> {
+            Message.MessageObject user = mData.get((int) id);
+            Intent intent = new Intent(getActivity(), MessageListActivity_.class);
+            intent.putExtra("mUserObject", user.friend);
+            startActivity(intent);
 
-                postMarkReaded(user.friend.global_key);
-            }
+            postMarkReaded(user.friend.global_key);
         });
 
-        listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                final Message.MessageObject msg = mData.get((int) id);
-                final String format = "删除你和%s之间的所有私信?";
-                String title = String.format(format, msg.friend.name);
+        listView.setOnItemLongClickListener((parent, view, position, id) -> {
+            final Message.MessageObject msg = mData.get((int) id);
+            final String format = "删除你和%s之间的所有私信?";
+            String title = String.format(format, msg.friend.name);
 
-                showDialog("私信", title, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        final String hostDeleteAll = Global.HOST_API + "/message/conversations/%s";
-                        String url = String.format(hostDeleteAll, msg.friend.id);
-                        deleteNetwork(url, TAG_DELETE_MESSAGE, msg);
-                    }
-                });
+            showDialog("私信", title, (dialog, which) -> {
+                final String hostDeleteAll = Global.HOST_API + "/message/conversations/%s";
+                String url = String.format(hostDeleteAll, msg.friend.id);
+                deleteNetwork(url, TAG_DELETE_MESSAGE, msg);
+            });
 
-                return true;
-            }
+            return true;
         });
 
         initData();
@@ -207,36 +212,17 @@ public class UsersListFragment extends RefreshBaseFragment implements FootUpdate
     public void onStart() {
         super.onStart();
 
-        getNetwork(HOST_UNREAD_AT, HOST_UNREAD_AT);
-        getNetwork(HOST_UNREAD_COMMENT, HOST_UNREAD_COMMENT);
         getNetwork(HOST_UNREAD_SYSTEM, HOST_UNREAD_SYSTEM);
 
         mInstance = new WeakReference<>(this);
+
+        onRefresh();
     }
 
     @Override
     public void onStop() {
         mInstance = new WeakReference<>(null);
         super.onStop();
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-
-        String userGlobal = ReadedUserId.getReadedUser();
-        if (!userGlobal.isEmpty()) {
-            markUserReaded(userGlobal, ReadedUserId.getUserLastMessage());
-
-            postMarkReaded(userGlobal);
-            ReadedUserId.remove();
-        }
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
-
     }
 
     void deleteItem(Message.MessageObject msg) {
@@ -255,52 +241,20 @@ public class UsersListFragment extends RefreshBaseFragment implements FootUpdate
     }
 
     private void initHead() {
-        View v = mInflater.inflate(R.layout.fragment_message_user_list_head, null, false);
-
-        v.findViewById(R.id.atLayout).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startNotifyListActivity(0);
-            }
-        });
-
-        v.findViewById(R.id.commentLayout).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startNotifyListActivity(1);
-            }
-        });
-
-        v.findViewById(R.id.systemLayout).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startNotifyListActivity(4);
-            }
-        });
-
-        badgeAt = (BadgeView) v.findViewById(R.id.badgeAt);
-        badgeAt.setVisibility(View.INVISIBLE);
-        badgeComment = (BadgeView) v.findViewById(R.id.badgeComment);
-        badgeComment.setVisibility(View.INVISIBLE);
-        badgeSystem = (BadgeView) v.findViewById(R.id.badgeSystem);
+        listHeader = mInflater.inflate(R.layout.fragment_message_user_list_head, listView, false);
+        listHeader.findViewById(R.id.systemLayout).setOnClickListener(v1 -> startNotifyListActivity());
+        badgeSystem = listHeader.findViewById(R.id.badgeSystem);
         badgeSystem.setVisibility(View.INVISIBLE);
+        listView.addHeaderView(listHeader, null, false);
 
-        listView.addHeaderView(v);
+        View footer = mInflater.inflate(R.layout.divide_bottom, listView, false);
+        listView.addFooterView(footer, null, false);
+
+        updateHeader();
     }
 
-    private void startNotifyListActivity(int type) {
-        NotifyListActivity_.intent(UsersListFragment.this)
-                .type(type)
-                .startForResult(type);
-    }
-
-    @OptionsItem
-    void action_add() {
-        UsersListActivity_.intent(this)
-                .type(UsersListActivity.Friend.Follow)
-                .select(true)
-                .hideFollowButton(true)
-                .startForResult(RESULT_SELECT_USER);
+    private void startNotifyListActivity() {
+        NotifyListActivity_.intent(UsersListFragment.this).startForResult(RESULT_NOTIFY);
     }
 
     @OnActivityResult(RESULT_SELECT_USER)
@@ -315,11 +269,11 @@ public class UsersListFragment extends RefreshBaseFragment implements FootUpdate
 
     private void handleVoiceMessage(Message.MessageObject item) {
         //语音消息重新设置extra
-        if(item.file!=null && item.file.endsWith(".amr") && item.duration>0){
+        if (item.file != null && item.file.endsWith(".amr") && item.duration > 0) {
             Log.w("test", "recordDuration1=" + item.duration);
-            int dur = item.duration/1000;
+            int dur = item.duration / 1000;
             item.content = "[语音]";
-            item.extra = "[voice]{'id':"+item.getId()+",'voiceUrl':'"+item.file+"','voiceDuration':"+dur+",'played':"+item.played+"}[voice]";
+            item.extra = "[voice]{'id':" + item.getId() + ",'voiceUrl':'" + item.file + "','voiceDuration':" + dur + ",'played':" + item.played + "}[voice]";
         }
     }
 
@@ -342,39 +296,17 @@ public class UsersListFragment extends RefreshBaseFragment implements FootUpdate
                 AccountInfo.saveMessageUsers(getActivity(), mData);
 
                 adapter.notifyDataSetChanged();
-
-//                if (isLoadingLastPage(tag)) {
-//                    mFootUpdate.dismiss();
-//                } else {
-//                    mFootUpdate.showLoading();
-//                }
-//                BlankViewDisplay.setBlank(mData.size(), UsersListFragment.this, true, blankLayout);
-
-
             } else {
                 showErrorMsg(code, respanse);
-//                if (mData.size() > 0) {
-//                    mFootUpdate.showFail();
-//                } else {
-//                    mFootUpdate.dismiss(); // 显示猴子照片
-//                }
-//                BlankViewDisplay.setBlank(mData.size(), UsersListFragment.this, false, blankLayout, onClickRetry);
             }
+
+            updateHeader();
+
+            BlankViewDisplay.setBlank(mData.size(), this, true, blankLayout, v -> loadMore());
+
             mFootUpdate.updateState(code, isLoadingLastPage(tag), mData.size());
 
             mUpdateAll = false;
-
-        } else if (tag.equals(HOST_UNREAD_AT)) {
-            if (code == 0) {
-                int count = respanse.getInt("data");
-                UnreadNotify.displayNotify(badgeAt, Unread.countToString(count));
-            }
-
-        } else if (tag.equals(HOST_UNREAD_COMMENT)) {
-            if (code == 0) {
-                int count = respanse.getInt("data");
-                UnreadNotify.displayNotify(badgeComment, Unread.countToString(count));
-            }
 
         } else if (tag.equals(HOST_UNREAD_SYSTEM)) {
             if (code == 0) {
@@ -394,6 +326,19 @@ public class UsersListFragment extends RefreshBaseFragment implements FootUpdate
             } else {
                 showButtomToast("删除失败");
             }
+        }
+    }
+
+    public void updateHeader() {
+        if (mData.isEmpty()) {
+            FrameLayout.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) blankLayout.getLayoutParams();
+            lp.topMargin = listHeader.getHeight();
+            blankLayout.setLayoutParams(lp);
+            listHeader.findViewById(R.id.headerBottomLine).setVisibility(View.GONE);
+            listHeader.findViewById(R.id.headerBottomLineEmpty).setVisibility(View.VISIBLE);
+        } else {
+            listHeader.findViewById(R.id.headerBottomLine).setVisibility(View.VISIBLE);
+            listHeader.findViewById(R.id.headerBottomLineEmpty).setVisibility(View.GONE);
         }
     }
 
@@ -430,19 +375,9 @@ public class UsersListFragment extends RefreshBaseFragment implements FootUpdate
         }
     }
 
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        switch (requestCode) {
-            case 0:
-                getNetwork(HOST_UNREAD_AT, HOST_UNREAD_AT);
-                break;
-            case 1:
-                getNetwork(HOST_UNREAD_COMMENT, HOST_UNREAD_COMMENT);
-                break;
-            case 4:
-                getNetwork(HOST_UNREAD_SYSTEM, HOST_UNREAD_SYSTEM);
-                break;
-        }
+    @OnActivityResult(RESULT_NOTIFY)
+    void onResultNotify() {
+        getNetwork(HOST_UNREAD_SYSTEM, HOST_UNREAD_SYSTEM);
     }
 
     static class ViewHolder {
@@ -451,35 +386,5 @@ public class UsersListFragment extends RefreshBaseFragment implements FootUpdate
         TextView content;
         TextView time;
         BadgeView badge;
-    }
-
-    public static class ReadedUserId {
-
-        private static String sReadedUser = "";
-
-        private static Message.MessageObject mData = null;
-
-        public static void setReadedUser(String id, Message.MessageObject data) {
-            if (id == null) {
-                id = "";
-                mData = null;
-            }
-
-            sReadedUser = id;
-            mData = data;
-        }
-
-        public static String getReadedUser() {
-            return sReadedUser;
-        }
-
-        public static Message.MessageObject getUserLastMessage() {
-            return mData;
-        }
-
-        public static void remove() {
-            sReadedUser = "";
-            mData = null;
-        }
     }
 }

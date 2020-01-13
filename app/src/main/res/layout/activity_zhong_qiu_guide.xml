@@ -1,0 +1,54 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white"
+    tools:background="@drawable/guide_zhongqiu_0"
+    tools:context="net.coding.program.login.ZhongQiuGuideActivity">
+
+    <android.support.v4.view.ViewPager
+        android:id="@+id/viewPager"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <net.coding.program.guide.IndicatorView
+        android:id="@+id/indicatorView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="40dp"
+        app:pointCount="2"
+        android:visibility="invisible"
+        app:pointView="@layout/guide_light_point" />
+
+    <TextView
+        android:id="@+id/entrance"
+        android:layout_width="174dp"
+        android:layout_height="50dp"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="78dp"
+        android:background="@drawable/round_rect_guide_entrance"
+        android:gravity="center"
+        android:text="立即体验"
+        android:layout_alignParentBottom="true"
+        android:textColor="@color/white"
+        android:textSize="16dp" />
+
+    <TextView
+        android:id="@+id/jump"
+        android:layout_width="53dp"
+        android:layout_height="28.6dp"
+        android:layout_alignParentRight="true"
+        android:layout_marginBottom="15dp"
+        android:layout_marginRight="20dp"
+        android:layout_marginTop="27dp"
+        android:background="@drawable/round_rect_guide_jump"
+        android:gravity="center"
+        android:visibility="invisible"
+        android:text="跳过"
+        android:textColor="#99000000"
+        android:textSize="13dp" />
+
+</RelativeLayout>

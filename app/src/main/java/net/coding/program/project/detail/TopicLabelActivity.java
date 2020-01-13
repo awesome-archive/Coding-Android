@@ -1,9 +1,10 @@
 package net.coding.program.project.detail;
 
-import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.support.v7.app.AlertDialog;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -12,20 +13,21 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 
-import net.coding.program.BackActivity;
 import net.coding.program.R;
-import net.coding.program.common.CustomDialog;
-import net.coding.program.model.PostRequest;
-import net.coding.program.model.TopicLabelObject;
-import net.coding.program.model.TopicObject;
+import net.coding.program.common.model.RequestData;
+import net.coding.program.common.model.TopicLabelObject;
+import net.coding.program.common.model.TopicObject;
+import net.coding.program.common.ui.BackActivity;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.Click;
 import org.androidannotations.annotations.EActivity;
 import org.androidannotations.annotations.Extra;
 import org.androidannotations.annotations.InstanceState;
+import org.androidannotations.annotations.OnActivityResult;
 import org.androidannotations.annotations.OptionsItem;
 import org.androidannotations.annotations.ViewById;
 import org.json.JSONArray;
@@ -36,7 +38,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Random;
 
 /**
@@ -46,13 +47,10 @@ import java.util.Random;
 @EActivity(R.layout.activity_topic_label)
 public class TopicLabelActivity extends BackActivity {
 
+    private static final int RESULT_PICK_COLOR = 1;
+    private static final int RESULT_MODIFY = 2;
+
     private static String COLOR = "#701035";
-//    @Extra
-//    String ownerUser;
-//    @Extra
-//    String projectName;
-//    @Extra
-//    Integer topicId;
 
     @Extra
     LabelType labelType = LabelType.Topic;
@@ -61,7 +59,7 @@ public class TopicLabelActivity extends BackActivity {
     @Extra
     int id = 0; // 必填
     @Extra
-    List<TopicLabelObject> checkedLabels; // 必填
+    ArrayList<TopicLabelObject> checkedLabels; // 必填
 
     TopicObject.LabelUrl labelUrl;
     @ViewById
@@ -70,6 +68,11 @@ public class TopicLabelActivity extends BackActivity {
     EditText editText;
     @ViewById
     View action_add, container;
+    @ViewById
+    ImageView colorPreview;
+
+    int generateColor = 0;
+
     @InstanceState
     String currentLabelName;
     @InstanceState
@@ -89,8 +92,15 @@ public class TopicLabelActivity extends BackActivity {
         }
     }
 
+    public static int getRandomColor() {
+        return 0xFF000000 | new Random().nextInt(0xFFFFFF);
+    }
+
     @AfterViews
     protected final void initTopicLabelActivity() {
+        generateColor = getRandomColor();
+        updateColorPreview();
+
         if (labelType == LabelType.Topic) {
             labelUrl = new TopicObject.TopicLabelUrl(projectPath, id);
         } else {
@@ -104,6 +114,20 @@ public class TopicLabelActivity extends BackActivity {
         }
 
         beginLoadLabels();
+    }
+
+    private void updateColorPreview() {
+        GradientDrawable bgDrawable = (GradientDrawable) colorPreview.getBackground();
+        if (bgDrawable != null) {
+            bgDrawable.setColor(generateColor);
+        }
+    }
+
+    @Click
+    void colorPreview() {
+        PickLabelColorActivity_.intent(this)
+                .generateColor(generateColor)
+                .startForResult(RESULT_PICK_COLOR);
     }
 
     @Click
@@ -121,6 +145,28 @@ public class TopicLabelActivity extends BackActivity {
         }
     }
 
+    @OnActivityResult(RESULT_PICK_COLOR)
+    void onResultPickColor(int result, @OnActivityResult.Extra int resultData) {
+        if (result == RESULT_OK) {
+            generateColor = resultData;
+            updateColorPreview();
+        }
+    }
+
+    @OnActivityResult(RESULT_MODIFY)
+    void onResultModify(int result, @OnActivityResult.Extra TopicLabelObject resultData) {
+        if (result == RESULT_OK) {
+            if (allLabels.containsKey(currentLabelId)) {
+                TopicLabelObject topicLabelObject = allLabels.get(currentLabelId);
+                topicLabelObject.name = resultData.name;
+                topicLabelObject.setColorValue(resultData.getColorValue());
+            }
+            updateList();
+        }
+
+        unlockViews();
+    }
+
     @OptionsItem
     void action_save() {
         if (id != 0) {
@@ -134,7 +180,7 @@ public class TopicLabelActivity extends BackActivity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         MenuInflater menuInflater = getMenuInflater();
-        menuInflater.inflate(net.coding.program.R.menu.topic_label, menu);
+        menuInflater.inflate(R.menu.topic_label, menu);
         menuActionSave = menu.findItem(R.id.action_save);
         menuActionSave.setEnabled(false);
 
@@ -210,8 +256,8 @@ public class TopicLabelActivity extends BackActivity {
 
     private void beginAddLebel(String name) {
         currentLabelName = name.trim();
-        COLOR = String.format("#%06X", new Random().nextInt(0xffffff));
-        PostRequest post = labelUrl.addLabel(currentLabelName, COLOR);
+        COLOR = String.format("#%06X", generateColor & 0x00FFFFFF);
+        RequestData post = labelUrl.addLabel(currentLabelName, COLOR);
         postNetwork(post.url, post.params, "URI_ADD_LABEL");
     }
 
@@ -219,9 +265,13 @@ public class TopicLabelActivity extends BackActivity {
         if (code == 0) {
             currentLabelId = json.getInt("data");
             editText.setText("");
-            allLabels.put(currentLabelId, new TopicLabelObject(currentLabelId, currentLabelName, Color.parseColor(COLOR)));
+            allLabels.put(currentLabelId, new TopicLabelObject(currentLabelId, currentLabelName, Color.parseColor(COLOR), COLOR));
             updateList();
             showButtomToast("添加标签成功^^");
+
+            endAddTopicLabel();
+            updateMenuActionSave();
+
         } else {
             showErrorMsg(code, json);
         }
@@ -244,7 +294,7 @@ public class TopicLabelActivity extends BackActivity {
 
     private void beginRenameLabel(String newName) {
         currentLabelName = newName;
-        PostRequest postRename = labelUrl.renameLabel(currentLabelId, newName, COLOR);
+        RequestData postRename = labelUrl.renameLabel(currentLabelId, newName, COLOR);
         putNetwork(postRename.url, postRename.params, "URI_RENAME_LABEL");
     }
 
@@ -265,7 +315,7 @@ public class TopicLabelActivity extends BackActivity {
             endSaveTopicLabels();
         } else {
             if (lockViews()) {
-                PostRequest postSave = labelUrl.saveTopic(checkedIds);
+                RequestData postSave = labelUrl.saveTopic(checkedIds);
                 postNetwork(postSave.url, postSave.params, "URI_SAVE_TOPIC_LABELS");
             }
         }
@@ -338,13 +388,21 @@ public class TopicLabelActivity extends BackActivity {
     }
 
     public void showPop(View view) {
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        AlertDialog dialog = new AlertDialog.Builder(this, R.style.MyAlertDialogStyle)
                 .setItems(R.array.topic_label_action, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         switch (which) {
                             case 0:
-                                doRename();
+//                                doRename();
+                                for (TopicLabelObject item : allLabels.values()) {
+                                    if (item.id == currentLabelId) {
+                                        ModifyLabelActivity_.intent(TopicLabelActivity.this)
+                                                .labelObject(item)
+                                                .projectPath(projectPath)
+                                                .startForResult(RESULT_MODIFY);
+                                    }
+                                }
                                 break;
                             case 1:
                                 doDelete();
@@ -353,20 +411,18 @@ public class TopicLabelActivity extends BackActivity {
                         }
                     }
                 }).show();
-        CustomDialog.dialogTitleLineColor(this, dialog);
     }
 
     private void doDelete() {
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        new AlertDialog.Builder(this, R.style.MyAlertDialogStyle)
                 .setTitle("删除标签").setMessage(String.format("确定要删除标签“%s”么？", currentLabelName))
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        if (lockViews()) beginRemoveLabel();
+                .setPositiveButton("确定", (dialog1, which) -> {
+                    if (lockViews()) {
+                        beginRemoveLabel();
                     }
-                }).setNegativeButton("取消", null).create();
-        dialog.show();
-        dialogTitleLineColor(dialog);
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     private void doRename() {
@@ -374,25 +430,23 @@ public class TopicLabelActivity extends BackActivity {
         View view = inflater.inflate(R.layout.dialog_input, null);
         final EditText input = (EditText) view.findViewById(R.id.value);
         input.setText(currentLabelName);
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        new AlertDialog.Builder(this, R.style.MyAlertDialogStyle)
                 .setTitle("重命名")
                 .setView(view)
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        String newName = input.getText().toString().trim();
-                        if (TextUtils.isEmpty(newName)) {
-                            showButtomToast("名字不能为空");
-                            return;
-                        }
-                        if (lockViews()) beginRenameLabel(newName);
-                        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+                .setPositiveButton("确定", (dialog1, which) -> {
+                    String newName = input.getText().toString().trim();
+                    if (TextUtils.isEmpty(newName)) {
+                        showButtomToast("名字不能为空");
+                        return;
                     }
+
+                    if (lockViews()) {
+                        beginRenameLabel(newName);
+                    }
+                    getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
                 })
                 .setNegativeButton("取消", null)
-                .create();
-        dialog.show();
-        dialogTitleLineColor(dialog);
+                .show();
         input.requestFocus();
     }
 

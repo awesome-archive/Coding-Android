@@ -2,51 +2,60 @@ package net.coding.program.project.detail;
 
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.support.v7.app.AlertDialog;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.BaseAdapter;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 
 import com.loopj.android.http.RequestParams;
 
-import net.coding.program.FootUpdate;
-import net.coding.program.MyApp;
 import net.coding.program.R;
-import net.coding.program.common.CustomDialog;
 import net.coding.program.common.Global;
+import net.coding.program.common.GlobalData;
+import net.coding.program.common.LoadMore;
 import net.coding.program.common.base.CustomMoreFragment;
-import net.coding.program.message.MessageListActivity_;
-import net.coding.program.model.AccountInfo;
-import net.coding.program.model.ProjectObject;
-import net.coding.program.model.TaskObject;
-import net.coding.program.model.UserObject;
-import net.coding.program.project.ProjectFragment;
-import net.coding.program.user.AddFollowActivity_;
+import net.coding.program.common.base.MyJsonResponse;
+import net.coding.program.common.model.ProjectObject;
+import net.coding.program.common.model.UserObject;
+import net.coding.program.common.network.MyAsyncHttpClient;
+import net.coding.program.common.umeng.UmengEvent;
+import net.coding.program.compatible.CodingCompat;
+import net.coding.program.network.constant.MemberAuthority;
+import net.coding.program.network.model.user.Member;
+import net.coding.program.project.EventProjectModify;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.EFragment;
 import org.androidannotations.annotations.FragmentArg;
+import org.androidannotations.annotations.ItemClick;
+import org.androidannotations.annotations.OnActivityResult;
 import org.androidannotations.annotations.OptionsItem;
 import org.androidannotations.annotations.ViewById;
+import org.greenrobot.eventbus.EventBus;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
 
+import static net.coding.program.project.detail.MembersListFragment.DataType.User;
 
-@EFragment(R.layout.common_refresh_listview)
-public class MembersListFragment extends CustomMoreFragment implements FootUpdate.LoadMore {
+
+@EFragment(R.layout.common_refresh_listview_divide)
+public class MembersListFragment extends CustomMoreFragment implements LoadMore {
 
     static final int RESULT_ADD_USER = 111;
+    static final int RESULT_MODIFY_AUTHORITY = 112;
+
     final String urlDeleteUser = Global.HOST_API + "/project/%d/kickout/%d";
     String urlMembers = Global.HOST_API + "/project/%d/members?pagesize=1000";
     String urlQuit = Global.HOST_API + "/project/%d/quit";
@@ -54,53 +63,22 @@ public class MembersListFragment extends CustomMoreFragment implements FootUpdat
     ProjectObject mProjectObject;
     @FragmentArg
     String mMergeUrl;
-    // 为true表示是用@选成员，为false表示项目成员列表
     @FragmentArg
-    boolean mSelect;
+    Type type = Type.Member;
+    @FragmentArg
+    DataType dataType;
     @ViewById
     ListView listView;
-
-    // TaskObject.Members
     ArrayList<Object> mSearchData = new ArrayList<>();
     ArrayList<Object> mData = new ArrayList<>();
+    Member mMySelf = new Member();
     BaseAdapter adapter = new BaseAdapter() {
-
-        private View.OnClickListener sendMessage = new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                UserObject user = (UserObject) v.getTag();
-                Intent intent = new Intent(getActivity(), MessageListActivity_.class);
-                intent.putExtra("mUserObject", user);
-                startActivity(intent);
-            }
-        };
-        private View.OnClickListener quitProject = new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                //showButtomToast("quit");
-//                String.format(urlMembers, mProjectObject.getId());
-                AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-                AlertDialog dialog = builder.setTitle("确认退出项目")
-                        .setMessage(String.format("您确定要退出 %s 项目吗？", mProjectObject.name))
-                        .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                RequestParams params = new RequestParams();
-                                postNetwork(urlQuit, params, urlQuit);
-                            }
-                        })
-                        .setNegativeButton("取消", new DialogInterface.OnClickListener() {
-
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-
-                            }
-                        })
-                        .show();
-
-                CustomDialog.dialogTitleLineColor(getActivity(), dialog);
-            }
+        private View.OnClickListener quitProject = v -> {
+            String message = String.format("您确定要退出 %s 项目吗？", mProjectObject.name);
+            showDialog("退出项目", message, (dialog1, which) -> {
+                RequestParams params = new RequestParams();
+                postNetwork(urlQuit, params, urlQuit);
+            });
         };
 
         @Override
@@ -125,9 +103,11 @@ public class MembersListFragment extends CustomMoreFragment implements FootUpdat
                 convertView = mInflater.inflate(R.layout.fragment_members_list_item, parent, false);
                 holder = new ViewHolder();
                 holder.name = (TextView) convertView.findViewById(R.id.name);
+                holder.alias = (TextView) convertView.findViewById(R.id.alias);
                 //holder.desc = (TextView) convertView.findViewById(R.id.desc);
                 holder.ic = (ImageView) convertView.findViewById(R.id.ic);
                 holder.icon = (ImageView) convertView.findViewById(R.id.icon);
+                holder.bottomLine = convertView.findViewById(R.id.bottomLine);
 //                holder.icon.setOnClickListener(mOnClickUser);
 //                holder.icon.setFocusable(false);
                 holder.btn = (ImageView) convertView.findViewById(R.id.btn);
@@ -140,12 +120,24 @@ public class MembersListFragment extends CustomMoreFragment implements FootUpdat
             UserObject user;
             holder.ic.setVisibility(View.GONE);
 
-            if (object instanceof TaskObject.Members) {
-                TaskObject.Members data = (TaskObject.Members) object;
+            if (object instanceof Member) {
+                Member data = (Member) object;
                 user = data.user;
-                if (data.type == TaskObject.Members.MEMBER_TYPE_OWNER) {
-                    //holder.desc.setText("(创建者)");
+
+                MemberAuthority memberType = data.getType();
+                int iconRes = memberType.getIcon();
+                if (iconRes == 0) {
+                    holder.ic.setVisibility(View.GONE);
+                } else {
                     holder.ic.setVisibility(View.VISIBLE);
+                    holder.ic.setImageResource(iconRes);
+                }
+
+                if (!data.alias.isEmpty()) {
+                    holder.alias.setText(data.alias);
+                    holder.alias.setVisibility(View.VISIBLE);
+                } else {
+                    holder.alias.setVisibility(View.GONE);
                 }
             } else { //  (object instanceof UserObject)
                 user = (UserObject) object;
@@ -155,116 +147,153 @@ public class MembersListFragment extends CustomMoreFragment implements FootUpdat
             iconfromNetwork(holder.icon, user.avatar);
             holder.icon.setTag(user.global_key);
 
-            if (mSearchData.size() - 1 == position) {
+            boolean isLast = mSearchData.size() - 1 == position;
+            holder.bottomLine.setVisibility(isLast ? View.INVISIBLE : View.VISIBLE);
+            if (isLast) {
                 loadMore();
             }
 
-            if (mSelect) {
+            if (type == Type.Pick) {
                 holder.btn.setVisibility(View.GONE);
-            } else if (user.name.equals(MyApp.sUserObject.name)) {
+            } else if (user.name.equals(GlobalData.sUserObject.name) &&
+                    !GlobalData.isEnterprise() &&
+                    (mProjectObject != null && mProjectObject.isPublic())) {
+                // 只有公开项目还有退出按钮
                 holder.btn.setImageResource(R.drawable.ic_member_list_quit);
                 holder.btn.setOnClickListener(quitProject);
-                if (object instanceof TaskObject.Members) {
-                    TaskObject.Members data = (TaskObject.Members) object;
-                    if (data.type == TaskObject.Members.MEMBER_TYPE_OWNER) {
+                if (object instanceof Member) {
+                    Member data = (Member) object;
+                    if (data.isOwner()) {
                         holder.btn.setVisibility(View.GONE);
                     } else {
                         holder.btn.setVisibility(View.VISIBLE);
                     }
                 }
             } else {
-                holder.btn.setImageResource(R.drawable.ic_send_message);
-                holder.btn.setTag(user);
-                holder.btn.setOnClickListener(sendMessage);
-                holder.btn.setVisibility(View.VISIBLE);
+                holder.btn.setVisibility(View.INVISIBLE);
             }
 
             return convertView;
         }
     };
 
+    @ItemClick(R.id.listView)
+    public void listViewItemClicked(Object object) {
+        if (type == Type.Pick) {
+            Intent intent = new Intent();
+            UserObject userObject;
+
+            if (object instanceof Member) {
+                userObject = ((Member) object).user;
+            } else {
+                userObject = (UserObject) object;
+            }
+
+            intent.putExtra("name", userObject.name);
+            getActivity().setResult(Activity.RESULT_OK, intent);
+            getActivity().finish();
+        } else if (dataType == DataType.User) {
+            if (object instanceof UserObject) {
+                String globalKey = ((UserObject) object).global_key;
+                CodingCompat.instance().launchUserDetailActivity(getActivity(), globalKey);
+            }
+        } else {
+            UserDynamicActivity_
+                    .intent(getActivity())
+                    .mProjectObject(mProjectObject)
+                    .mMember((Member) object)
+                    .start();
+        }
+    }
+
     @AfterViews
     protected void init() {
         initRefreshLayout();
 
-        if (mProjectObject != null) {
-            mData = (ArrayList) AccountInfo.loadProjectMembers(getActivity(), mProjectObject.getId());
-        } else {
-            mData = new ArrayList<>();
-        }
+        mData = new ArrayList<>();
         mSearchData = new ArrayList<>(mData);
         if (mSearchData.isEmpty()) {
             showDialogLoading();
         }
 
+        listViewAddHeaderSection(listView);
+
         listView.setAdapter(adapter);
-        AdapterView.OnItemClickListener mListClickJump;
-        if (mSelect) {
-            mListClickJump = new AdapterView.OnItemClickListener() {
-                @Override
-                public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                    Intent intent = new Intent();
-                    UserObject userObject;
-                    Object object = mSearchData.get((int) id);
-                    if (object instanceof TaskObject.Members) {
-                        userObject = ((TaskObject.Members) object).user;
-                    } else {
-                        userObject = (UserObject) object;
-                    }
 
-                    intent.putExtra("name", userObject.name);
-                    getActivity().setResult(Activity.RESULT_OK, intent);
-                    getActivity().finish();
-                }
-            };
-        } else {
-            mListClickJump = new AdapterView.OnItemClickListener() {
-                @Override
-                public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                    UserDynamicActivity_
-                            .intent(getActivity())
-                            .mProjectObject(mProjectObject)
-                            .mMember((TaskObject.Members) mSearchData.get(position))
-                            .start();
 
-                }
-            };
-        }
-        listView.setOnItemClickListener(mListClickJump);
+        if (type != Type.Pick) {
+            listView.setOnItemLongClickListener((parent, view, position, id) -> {
+                Member member = (Member) mSearchData.get((int) id);
+//                    if (member.user.isMe()) {
+//                        return true;
+//                    }
 
-        if (projectCreateByMe()) {
-            listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-                @Override
-                public boolean onItemLongClick(AdapterView<?> parent, View view, int position, final long id) {
-                    final UserObject user = getUser(mSearchData.get((int) id));
-                    if (user.global_key.equals(MyApp.sUserObject.global_key)) {
-                        return false;
-                    }
-
-                    final AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-                    AlertDialog dialog = builder.setItems(new String[]{"移除成员"}, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            AlertDialog.Builder builder1 = new AlertDialog.Builder(getActivity());
-
-                            builder1.setMessage(String.format("确定移除 %s ?", user.name))
-                                    .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                                        @Override
-                                        public void onClick(DialogInterface dialog, int which) {
-                                            String url = String.format(urlDeleteUser, mProjectObject.getId(), user.id);
-                                            postNetwork(url, new RequestParams(), urlDeleteUser, (int) id, null);
-                                            showProgressBar(true);
-                                        }
-                                    })
-                                    .setNegativeButton("取消", null)
-                                    .create().show();
-
-                        }
-                    }).show();
-                    CustomDialog.dialogTitleLineColor(getActivity(), dialog);
-
+                if (mMySelf.getType() != MemberAuthority.ower
+                        && mMySelf.getType() != MemberAuthority.manager) {
                     return true;
                 }
+
+                String[] items;
+                DialogInterface.OnClickListener clicks;
+                switch (mMySelf.getType()) {
+                    case ower:
+                        if (member.isMe()) {
+                            items = new String[]{
+                                    "修改备注"
+                            };
+                        } else {
+                            items = new String[]{
+                                    "修改备注",
+                                    "设置权限",
+                                    "移除成员"
+                            };
+                        }
+                        clicks = (dialog1, which) -> {
+                            if (which == 0) {
+                                modifyMemberAlias(member);
+                            } else if (which == 1) {
+                                modifyMemberAuthority(member);
+                            } else {
+                                removeMember(member);
+                            }
+                        };
+                        break;
+                    case manager:
+                        if (member.getType() == MemberAuthority.manager
+                                || member.getType() == MemberAuthority.ower) {
+                            items = new String[]{
+                                    "修改备注"
+                            };
+                            clicks = (dialog1, which) -> {
+                                if (which == 0) {
+                                    modifyMemberAlias(member);
+                                }
+                            };
+                        } else {
+                            items = new String[]{
+                                    "修改备注",
+                                    "设置权限",
+                                    "移除成员"
+                            };
+                            clicks = (dialog1, which) -> {
+                                if (which == 0) {
+                                    modifyMemberAlias(member);
+                                } else if (which == 1) {
+                                    modifyMemberAuthority(member);
+                                } else {
+                                    removeMember(member);
+                                }
+                            };
+                        }
+                        break;
+                    default:
+                        return true;
+                }
+
+                new AlertDialog.Builder(getActivity(), R.style.MyAlertDialogStyle)
+                        .setItems(items, clicks)
+                        .show();
+                return true;
             });
         }
 
@@ -280,12 +309,60 @@ public class MembersListFragment extends CustomMoreFragment implements FootUpdat
         setHasOptionsMenu(true);
     }
 
-    private UserObject getUser(Object object) {
-        if (object instanceof UserObject) {
-            return (UserObject) object;
-        } else {
-            return ((TaskObject.Members) object).user;
-        }
+    private void modifyMemberAuthority(Member member) {
+        MemberAuthorityActivity_.intent(this)
+                .authority(member.getType())
+                .globayKey(member.user.global_key)
+                .me(mMySelf)
+                .projectId(mProjectObject.getId())
+                .startForResult(RESULT_MODIFY_AUTHORITY);
+    }
+
+    private void modifyMemberAlias(Member member) {
+        UserObject user = member.user;
+        View v = LayoutInflater.from(getActivity()).inflate(R.layout.dialog_input_alias, null);
+        EditText input = (EditText) v.findViewById(R.id.edit1);
+        input.setText(member.alias);
+        new AlertDialog.Builder(getActivity(), R.style.MyAlertDialogStyle)
+                .setMessage("修改备注")
+                .setView(v)
+                .setPositiveButton("确定", (dialog2, which1) -> {
+                    String inputString = input.getText().toString();
+                    String url = String.format(Global.HOST_API + "/project/%s/members/update_alias/%s",
+                            mProjectObject.getId(), user.id);
+                    RequestParams params = new RequestParams();
+                    params.put("alias", inputString);
+                    MyAsyncHttpClient.post(getActivity(), url, params, new MyJsonResponse(getActivity()) {
+                        @Override
+                        public void onMySuccess(JSONObject response) {
+                            super.onMySuccess(response);
+                            member.alias = inputString;
+                            adapter.notifyDataSetChanged();
+                        }
+
+                        @Override
+                        public void onFinish() {
+                            showProgressBar(false);
+                        }
+                    });
+
+                    showProgressBar(true);
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void removeMember(Member member) {
+        UserObject user = member.user;
+        new AlertDialog.Builder(getActivity(), R.style.MyAlertDialogStyle)
+                .setMessage(String.format("确定移除 %s ?", user.name))
+                .setPositiveButton("确定", (dialog2, which1) -> {
+                    String url = String.format(urlDeleteUser, mProjectObject.getId(), user.id);
+                    postNetwork(url, new RequestParams(), urlDeleteUser, -1, member);
+                    showProgressBar(true);
+                })
+                .setNegativeButton("取消", null)
+                .create().show();
     }
 
     public void search(String input) {
@@ -295,8 +372,8 @@ public class MembersListFragment extends CustomMoreFragment implements FootUpdat
         } else {
             for (Object item : mData) {
                 UserObject user;
-                if (item instanceof TaskObject.Members) {
-                    user = ((TaskObject.Members) item).user;
+                if (item instanceof Member) {
+                    user = ((Member) item).user;
                 } else {
                     user = (UserObject) item;
                 }
@@ -316,40 +393,38 @@ public class MembersListFragment extends CustomMoreFragment implements FootUpdat
         getNextPageNetwork(urlMembers, urlMembers);
     }
 
-    private boolean projectCreateByMe() {
-        if (mProjectObject != null) {
-            return mProjectObject.owner_user_name.equals(MyApp.sUserObject.global_key);
-        }
-
-        return false;
+    private boolean canManagerMember() {
+        return mProjectObject != null && mProjectObject.canManagerMember();
     }
 
     @OptionsItem
     void action_add() {
-        Intent intent = new Intent(getActivity(), AddFollowActivity_.class);
-        intent.putExtra("mProjectObject", mProjectObject);
-        startActivityForResult(intent, RESULT_ADD_USER);
+        ArrayList<String> picks = new ArrayList<>();
+        if (mSearchData != null && mSearchData.size() > 0 && mSearchData.get(0) instanceof Member) {
+            for (Object item : mSearchData) {
+                picks.add(((Member) item).user.global_key);
+            }
+        }
+        CodingCompat.instance().launchAddMemberActivity(this, mProjectObject, picks, RESULT_ADD_USER);
     }
 
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == RESULT_ADD_USER) {
-            if (resultCode == Activity.RESULT_OK) {
-                initSetting();
-                loadMore();
-            }
-        } else {
-            super.onActivityResult(requestCode, resultCode, data);
+    @OnActivityResult(RESULT_ADD_USER)
+    void onResultAddUser(int resultCode) {
+        onRefresh();
+    }
+
+    @OnActivityResult(RESULT_MODIFY_AUTHORITY)
+    void onResultModifyAuthority(int resultCode) {
+        if (resultCode == Activity.RESULT_OK) {
+            onRefresh();
         }
     }
 
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-        if (!mSelect) {
-            if (projectCreateByMe()) {
+        if (type != Type.Pick) {
+            if (canManagerMember()) {
                 inflater.inflate(R.menu.users, menu);
-            } else {
-                inflater.inflate(R.menu.common_more, menu);
             }
         }
 
@@ -362,37 +437,52 @@ public class MembersListFragment extends CustomMoreFragment implements FootUpdat
         getNetwork(urlMembers, urlMembers);
     }
 
+    private void parseUser(JSONArray members) {
+        for (int i = 0; i < members.length(); ++i) {
+            UserObject member = new UserObject(members.optJSONObject(i));
+            mData.add(member);
+        }
+    }
+
     @Override
     public void parseJson(int code, JSONObject respanse, String tag, int pos, Object data) throws JSONException {
         if (tag.equals(urlMembers)) {
-            hideProgressDialog();
+            hideDialogLoading();
             setRefreshing(false);
 
             if (code == 0) {
                 if (isLoadingFirstPage(tag)) {
                     mData.clear();
                 }
+
+                JSONObject dataObject = respanse.optJSONObject("data");
                 // 项目成员的数据是 data - list，包了两层
-                if (mProjectObject != null) {
+                if (dataObject != null) {
                     JSONArray members;
                     members = respanse.getJSONObject("data").getJSONArray("list");
 
-                    for (int i = 0; i < members.length(); ++i) {
-                        TaskObject.Members member = new TaskObject.Members(members.getJSONObject(i));
-                        if (member.type == TaskObject.Members.MEMBER_TYPE_OWNER) {
-                            mData.add(0, member);
-                        } else {
-                            mData.add(member);
+                    if (dataType == User) {
+                        parseUser(members);
+                    } else {
+                        for (int i = 0; i < members.length(); ++i) {
+                            Member member = new Member(members.getJSONObject(i));
+                            if (member.isOwner()) {
+                                mData.add(0, member);
+                            } else {
+                                mData.add(member);
+                            }
+
+                            if (member.isMe()) {
+                                mMySelf = member;
+                            }
+
                         }
                     }
 
-                    AccountInfo.saveProjectMembers(getActivity(), (ArrayList) mData, mProjectObject.getId());
+//                    AccountInfo.saveProjectMembers(getActivity(), (ArrayList) mData, mProjectObject.getId());
                 } else { // merge 的at他人列表只用 data 包了一层
                     JSONArray members = respanse.getJSONArray("data");
-                    for (int i = 0; i < members.length(); ++i) {
-                        UserObject member = new UserObject(members.getJSONObject(i));
-                        mData.add(member);
-                    }
+                    parseUser(members);
                 }
 
                 mSearchData.clear();
@@ -404,10 +494,12 @@ public class MembersListFragment extends CustomMoreFragment implements FootUpdat
 
         } else if (tag.equals(urlQuit)) {
             if (code == 0) {
+                umengEvent(UmengEvent.PROJECT, "退出项目");
+
                 showButtomToast("成功退出项目");
-                Intent intent = new Intent();
-                intent.setAction(ProjectFragment.RECEIVER_INTENT_REFRESH_PROJECT);
-                getActivity().sendBroadcast(intent);
+
+                EventBus.getDefault().post(new EventProjectModify().setExit());
+
                 getActivity().onBackPressed();
             } else {
                 showErrorMsg(code, respanse);
@@ -416,7 +508,8 @@ public class MembersListFragment extends CustomMoreFragment implements FootUpdat
         } else if (tag.equals(urlDeleteUser)) {
             showProgressBar(false);
             if (code == 0) {
-                mSearchData.remove(pos);
+                umengEvent(UmengEvent.PROJECT, "移除成员");
+                mSearchData.remove(data);
                 adapter.notifyDataSetChanged();
             } else {
                 showErrorMsg(code, respanse);
@@ -429,10 +522,22 @@ public class MembersListFragment extends CustomMoreFragment implements FootUpdat
         return Global.HOST + mProjectObject.project_path + "/members";
     }
 
+    public enum Type {
+        Member,
+        Pick,
+    }
+
+    public enum DataType {
+        Member,
+        User
+    }
+
     static class ViewHolder {
         ImageView icon;
         TextView name;
+        TextView alias;
         ImageView ic;
         ImageView btn;
+        View bottomLine;
     }
 }
